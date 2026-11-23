@@ -24,6 +24,12 @@
 
 <p align="center">📊 评测基准：<a href="https://github.com/AetherLabsAI/GameAnything-Bench">GameAnything-Bench</a></p>
 
+<p align="center">
+  <a href="https://huggingface.co/spaces/GameAnything/GameAnything"><img src="docs/media/trailer.webp" alt="GameAnything 预告片（点击在项目主页观看完整视频）" width="100%"></a>
+  <br>
+  <b>🎬 <a href="https://huggingface.co/spaces/GameAnything/GameAnything">在项目主页观看 2 分钟完整预告片</a></b>
+</p>
+
 <!-- DEMO:G1 八宫格 4×2，宽 1600 px：红楼梦、哈利波特、无人生还（Minecraft）· 圣地亚哥（城市：天际线）· 香港美食（胡闹厨房 2）· 读博（杀戮尖塔）· 婚礼（星露谷）· 雪中温泉（英灵神殿） -->
 <p align="center"><img src="https://github.com/user-attachments/assets/13b340e6-629d-4159-b393-91c09eec1d68" alt="Eight projects, eight worlds" width="100%"></p>
 

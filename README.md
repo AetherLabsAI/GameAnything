@@ -24,6 +24,12 @@
 
 <p align="center">📊 Benchmark: <a href="https://github.com/AetherLabsAI/GameAnything-Bench">GameAnything-Bench</a></p>
 
+<p align="center">
+  <a href="https://huggingface.co/spaces/GameAnything/GameAnything"><img src="docs/media/trailer.webp" alt="GameAnything trailer (click to watch the full video on the project page)" width="100%"></a>
+  <br>
+  <b>🎬 <a href="https://huggingface.co/spaces/GameAnything/GameAnything">Watch the full 2-minute trailer on the project page</a></b>
+</p>
+
 <!-- DEMO:G1 hero, 8-grid (4x2), 1600 px wide: Dream of the Red Chamber, Harry Potter, And Then There Were None (Minecraft) · San Diego (Cities: Skylines) · Hong Kong food (Overcooked! 2) · PhD (Slay the Spire) · a wedding (Stardew Valley) · a hot spring (Valheim) -->
 <p align="center"><img src="https://github.com/user-attachments/assets/13b340e6-629d-4159-b393-91c09eec1d68" alt="Eight projects, eight worlds" width="100%"></p>
 
