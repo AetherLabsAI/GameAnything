@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GameAnything · 人物标记</title>
+<style>
+:root { --bg:#f6f5f2; --panel:#fff; --ink:#222; --muted:#777; --line:#e3e0da; --accent:#3b6fd6; --ok:#2e9d5b; --warn:#d88a1c; --chip:#eef2fb; }
+* { box-sizing: border-box; }
+body { margin:0; font:14px/1.45 -apple-system, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; color:var(--ink); background:var(--bg); }
+header { display:flex; align-items:center; gap:14px; padding:8px 14px; background:var(--panel); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+header h1 { font-size:16px; margin:0; font-weight:600; }
+header .sp { flex:1; }
+#saved { color:var(--muted); font-size:12px; }
+#saved.dirty { color:var(--warn); }
+button, select, input { font:inherit; }
+button { border:1px solid var(--line); background:#fff; border-radius:6px; padding:3px 9px; cursor:pointer; }
+button:hover { border-color:var(--accent); }
+main { display:grid; grid-template-columns: 250px 1fr 360px; height: calc(100vh - 45px); }
+#left, #right { overflow:auto; background:var(--panel); }
+#left { border-right:1px solid var(--line); padding:8px; }
+#right { border-left:1px solid var(--line); padding:8px 10px; }
+.seg h3 { font-size:12px; color:var(--muted); margin:10px 2px 4px; font-weight:600; }
+.thumbs { display:grid; grid-template-columns: repeat(3, 1fr); gap:4px; }
+.th { position:relative; cursor:pointer; border:2px solid transparent; border-radius:4px; overflow:hidden; background:#ddd; aspect-ratio:1; }
+.th img { width:100%; height:100%; object-fit:cover; display:block; }
+.th.cur { border-color:var(--accent); }
+.th .badge { position:absolute; right:2px; bottom:2px; background:rgba(0,0,0,.6); color:#fff; font-size:10px; padding:0 4px; border-radius:3px; }
+.th .badge.done { background:var(--ok); }
+#center { overflow:auto; padding:12px; display:flex; flex-direction:column; align-items:center; }
+#bar { display:flex; gap:10px; align-items:center; width:100%; max-width:1100px; margin-bottom:8px; color:var(--muted); font-size:12px; }
+#stage { position:relative; max-width:1100px; width:100%; user-select:none; }
+#stage img { width:100%; display:block; border-radius:4px; }
+#ov { position:absolute; inset:0; cursor:crosshair; }
+.box { position:absolute; border:2px dashed rgba(255,255,255,.95); box-shadow:0 0 0 1px rgba(0,0,0,.35); cursor:pointer; border-radius:3px; }
+.box.low { border-color:rgba(255,200,80,.9); }
+.box.tagged { border:2px solid var(--ok); }
+.box.ign { border:1px dotted rgba(255,255,255,.5); box-shadow:none; }
+.box.sel { border-color:var(--accent); border-style:solid; }
+.box .lb { position:absolute; left:-2px; top:-20px; background:var(--ok); color:#fff; font-size:11px; padding:0 5px; border-radius:3px; white-space:nowrap; }
+.box.untagged .lb { background:rgba(0,0,0,.55); }
+#draw { position:absolute; border:2px solid var(--accent); background:rgba(59,111,214,.12); display:none; }
+#pop { position:fixed; z-index:20; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.18); width:280px; padding:8px; display:none; }
+#pop input { width:100%; padding:5px 7px; border:1px solid var(--line); border-radius:5px; }
+#pop .list { max-height:280px; overflow:auto; margin:6px 0; }
+#pop .opt { display:flex; align-items:center; gap:7px; padding:4px 5px; border-radius:5px; cursor:pointer; }
+#pop .opt:hover, #pop .opt.hl { background:var(--chip); }
+#pop .opt img { width:26px; height:26px; object-fit:cover; border-radius:4px; background:#ddd; }
+#pop .opt small { color:var(--muted); display:block; font-size:11px; line-height:1.2; }
+#pop .acts { display:flex; gap:6px; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:6px; }
+h2 { font-size:13px; margin:10px 0 6px; display:flex; align-items:center; gap:8px; }
+h2 .sp { flex:1; }
+.group { border:1px solid var(--line); border-radius:8px; padding:6px 7px; margin-bottom:6px; background:#fbfaf8; }
+.group.over, .card.over { outline:2px dashed var(--accent); outline-offset:1px; }
+.group .gh { display:flex; gap:6px; align-items:center; }
+.group .gh input { flex:1; border:0; background:transparent; font-weight:600; padding:1px 2px; }
+.group .gh select { font-size:12px; }
+.chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:5px; min-height:20px; }
+.chip { background:var(--chip); border-radius:10px; padding:0 4px 0 8px; font-size:12px; display:inline-flex; align-items:center; gap:3px; cursor:pointer; }
+.chip b { font-weight:400; color:var(--muted); cursor:pointer; padding:0 3px; }
+.hint { color:var(--muted); font-size:12px; }
+.card { display:grid; grid-template-columns: 54px 1fr; gap:8px; border:1px solid var(--line); border-radius:8px; padding:6px; margin-bottom:6px; background:#fff; cursor:grab; -webkit-user-drag:element; user-select:none; }
+.card input, .card select { user-select:text; -webkit-user-drag:none; }
+#groupsbox { position:sticky; top:-8px; z-index:3; background:var(--panel); padding-top:2px; max-height:42vh; overflow:auto; border-bottom:1px solid var(--line); margin:0 -10px; padding:0 10px 6px; }
+.group .gname { flex:1; font-weight:600; padding:1px 2px; cursor:text; }
+.card select.mini { font-size:12px; max-width:140px; }
+.card textarea { width:100%; font:12px/1.4 inherit; border:1px solid var(--line); border-radius:5px; padding:3px 5px; resize:vertical; user-select:text; -webkit-user-drag:none; }
+.card .dl { margin:4px 3px 0; font-size:12px; color:var(--muted); }
+.card .dl .src { font-size:11px; }
+.player { color:var(--accent); font-weight:600; font-size:12px; }
+.bulk { display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap; }
+.card.hl { border-color:var(--accent); box-shadow:0 0 0 2px rgba(59,111,214,.2); }
+.card .av { width:54px; height:54px; border-radius:6px; object-fit:cover; background:#ddd; cursor:grab; }
+.card .av:active { cursor:grabbing; }
+.card input.nm { width:100%; border:1px solid transparent; border-radius:4px; padding:1px 4px; font-weight:600; }
+.card input.nm:hover, .card input.nm:focus { border-color:var(--line); }
+.card input.rl { width:100%; border:1px solid transparent; border-radius:4px; padding:0 4px; font-size:12px; color:#444; }
+.card input.rl:hover, .card input.rl:focus { border-color:var(--line); }
+.card .lk { color:var(--muted); font-size:11px; margin:2px 4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.card .row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-size:12px; margin:2px 3px 0; }
+.card .row a { color:var(--accent); cursor:pointer; }
+.card .x { color:var(--muted); cursor:pointer; margin-left:auto; }
+#filter { width:100%; padding:4px 7px; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; }
+.help { font-size:12px; color:var(--muted); background:#fbfaf8; border:1px solid var(--line); border-radius:8px; padding:6px 8px; margin-bottom:8px; }
+.help b { color:var(--ink); font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="ttl">人物标记</h1>
+  <a href="/" style="color:var(--accent);text-decoration:none">← 首页</a> <a href="/looks" style="color:var(--accent);text-decoration:none">形象确认 →</a> <a href="/play" style="color:var(--accent);text-decoration:none">试玩检查 →</a>
+  <span class="hint" id="prog"></span>
+  <span class="sp"></span>
+  <label class="hint"><input type="checkbox" id="showlow"> 显示把握较低的框</label>
+  <span id="saved">已保存</span>
+  <button id="savebtn">保存</button>
+</header>
+<main>
+  <section id="left"></section>
+  <section id="center">
+    <div id="bar"><span id="curname"></span><span class="sp" style="flex:1"></span><span>← → 切换照片 · 点框选人 · 在空白处拖动画新框</span></div>
+    <div id="stage"><img id="img" alt=""><div id="ov"><div id="draw"></div></div></div>
+  </section>
+  <section id="right">
+    <div class="help"><b>怎么用</b>：点照片上的框，选这是谁（或新建一个人）；框漏了就在空白处拖一个。把<b>人物卡</b>拖到<b>分组</b>上，或用卡片上的“加入分组”= 加入分组；拖到另一张人物卡上，或用“合并到”= 合并（同一个人）；把左边的<b>照片</b>拖到人物卡上 = "这个人也在这张照片里"。改动会自动保存。</div>
+    <div id="groupsbox"><h2>分组 <span class="sp"></span><button id="addgroup">＋ 新建分组</button></h2>
+    <div id="groups"></div></div>
+    <h2>人物 <span class="sp"></span><button id="addperson">＋ 新建人物</button></h2>
+    <input id="filter" placeholder="搜索名字 / 身份 / 外观">
+    <div class="bulk"><button id="npcall">全部做成游戏角色</button><button id="npcnone">全部取消</button><span class="hint" id="bulkhint">（作用于下面列出的人；可以先搜索筛选）</span></div>
+    <div id="people"></div>
+  </section>
+</main>
+<div id="pop"><input id="q" placeholder="输入名字搜索，或输入新名字"><div class="list" id="plist"></div><div class="acts" id="pacts"></div></div>
+<script>
+const PRESENCE = {   // D8: how long / how deep a person stays in the game is the user's choice; the cost of each level in plain words
+  event_only: ["只在婚礼里出现", "只出现在婚礼当天的剧情和活动里。不进存档，卸载 mod 后什么也不留下。"],
+  visits: ["之后偶尔出现", "婚礼后会在某些时候出现（比如夏天傍晚的海滩），可以聊天。不是正式村民，不进存档，卸载 mod 后什么也不留下。"],
+  villager: ["正式村民", "成为镇上的村民：有日程、好感度，可以送礼。会写进存档；卸载 mod 对存档的影响要在设计阶段确认后再告诉你。"],
+  spouse: ["你的配偶", "婚礼后成为你在游戏里的配偶，住进你的农舍，每天有配偶台词。会写进存档（World Plan 里你选的）。"],
+};
+const KINDS = {family:"家人", friends:"朋友", colleagues:"同学 / 同事", community:"教会 / 社群", other:"其他"};
+let S = null, cur = null, sel = null, dirty = false, timer = null, merged = [];
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const label = p => p.name || ("？" + String(p.role_guess || p.role || p.id).replace(/（.*$/, "").slice(0, 16));
+const looks = p => typeof p.looks === "object" && p.looks ? Object.values(p.looks).join("；") : (p.looks || "");
+const iou = (a, b) => { const x0 = Math.max(a[0], b[0]), y0 = Math.max(a[1], b[1]), x1 = Math.min(a[2], b[2]), y1 = Math.min(a[3], b[3]);
+  const i = Math.max(0, x1 - x0) * Math.max(0, y1 - y0); const u = (a[2]-a[0])*(a[3]-a[1]) + (b[2]-b[0])*(b[3]-b[1]) - i; return u > 0 ? i / u : 0; };
+const person = id => S.people.find(p => p.id === id);
+const photo = id => S.photos.find(p => p.id === id);
+const tagsOf = pid => S.tags.filter(t => t.item === pid);
+
+async function load() {
+  S = await (await fetch("/api/state")).json();
+  $("ttl").textContent = S.title + " · 人物标记"; document.title = S.title + " · 人物标记";
+  for (const p of S.people) p.appears_in = p.appears_in || [];
+  cur = S.photos[0]?.id; renderAll();
+}
+function changed() { dirty = true; $("saved").textContent = "未保存"; $("saved").className = "dirty"; clearTimeout(timer); timer = setTimeout(save, 1200); }
+async function save() {
+  if (!dirty) return; clearTimeout(timer);
+  const r = await fetch("/api/save", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({rev:S.rev, people:S.people, groups:S.groups, tags:S.tags, merged})});
+  const j = await r.json();
+  if (j.ok) { dirty = false; merged = []; S.rev = j.rev; $("saved").textContent = "已保存 " + j.at; $("saved").className = ""; }
+  else if (j.stale) { clearTimeout(timer); dirty = false; $("saved").textContent = "页面已过期，请刷新"; $("saved").className = "dirty"; alert(j.error); }
+  else { $("saved").textContent = "保存失败：" + j.error; $("saved").className = "dirty"; }
+}
+window.addEventListener("beforeunload", e => { if (dirty) { save(); e.preventDefault(); } });
+
+function visibleBoxes(ph) {
+  const tags = tagsOf(ph.id), out = tags.map(t => ({...t, tag:t}));
+  for (const b of ph.boxes) {
+    if (b.score < ph.show_threshold && !$("showlow").checked) continue;
+    if (tags.some(t => iou(t.box, b.box) > 0.6)) continue;
+    out.push({box:b.box, score:b.score, source:"detector", low:b.score < ph.show_threshold});
+  }
+  return out;
+}
+function photoProgress(ph) {
+  const v = visibleBoxes(ph); const done = v.filter(b => b.tag && b.tag.person).length; return [done, v.length];
+}
+
+function renderLeft() {
+  const used = new Set(), segs = [];
+  for (const s of S.segments) { const ps = s.items.filter(i => photo(i)); ps.forEach(i => used.add(i)); if (ps.length) segs.push([s.label, ps]); }
+  const rest = S.photos.map(p => p.id).filter(i => !used.has(i)); if (rest.length) segs.push(["其他", rest]);
+  let total = 0, done = 0;
+  $("left").innerHTML = segs.map(([lb, ids]) => `<div class="seg"><h3>${esc(lb)}</h3><div class="thumbs">` + ids.map(id => {
+      const ph = photo(id), [d, n] = photoProgress(ph); total += n; done += d;
+      return `<div class="th ${id === cur ? "cur" : ""}" draggable="true" data-id="${id}" title="${id}"><img src="${ph.thumb}" loading="lazy">
+              <span class="badge ${n && d === n ? "done" : ""}">${d}/${n}</span></div>`; }).join("") + `</div></div>`).join("");
+  $("prog").textContent = `已标 ${done} / ${total} 个框`;
+  for (const el of document.querySelectorAll(".th")) {
+    el.onclick = () => { cur = el.dataset.id; sel = null; renderAll(); };
+    el.ondragstart = e => e.dataTransfer.setData("text/plain", "photo:" + el.dataset.id);
+  }
+}
+
+function renderStage() {
+  const ph = photo(cur); if (!ph) return;
+  $("img").src = ph.image; $("curname").textContent = ph.id;
+  const ov = $("ov"); ov.querySelectorAll(".box").forEach(e => e.remove());
+  visibleBoxes(ph).forEach((b, i) => {
+    const el = document.createElement("div"), [x0, y0, x1, y1] = b.box;
+    const p = b.tag && b.tag.person && b.tag.person !== "_ignore" ? person(b.tag.person) : null;
+    el.className = "box " + (b.tag ? (b.tag.person === "_ignore" ? "ign" : (p ? "tagged" : "untagged")) : "untagged") + (b.low ? " low" : "") + (sel === b.box.join() ? " sel" : "");
+    Object.assign(el.style, {left: x0*100+"%", top: y0*100+"%", width: (x1-x0)*100+"%", height: (y1-y0)*100+"%"});
+    if (p || (b.tag && b.tag.person !== "_ignore")) el.innerHTML = `<span class="lb">${esc(p ? label(p) : "？")}</span>`;
+    el.onmousedown = e => e.stopPropagation();
+    el.onclick = e => { e.stopPropagation(); sel = b.box.join(); renderStage(); openPop(e.clientX, e.clientY, b); };
+    ov.appendChild(el);
+  });
+}
+
+// drawing a new box
+let drag = null;
+$("ov").onmousedown = e => {
+  if (e.button !== 0) return; closePop(); const r = $("ov").getBoundingClientRect();
+  drag = {r, x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height};
+};
+window.addEventListener("mousemove", e => {
+  if (!drag) return; const {r} = drag, x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height, d = $("draw");
+  Object.assign(d.style, {display:"block", left: Math.min(x, drag.x)*100+"%", top: Math.min(y, drag.y)*100+"%", width: Math.abs(x-drag.x)*100+"%", height: Math.abs(y-drag.y)*100+"%"});
+});
+window.addEventListener("mouseup", e => {
+  if (!drag) return; const {r} = drag, cl = v => Math.max(0, Math.min(1, v));
+  const x = cl((e.clientX - r.left) / r.width), y = cl((e.clientY - r.top) / r.height); $("draw").style.display = "none";
+  const box = [Math.min(x, drag.x), Math.min(y, drag.y), Math.max(x, drag.x), Math.max(y, drag.y)].map(v => +v.toFixed(4)); drag = null;
+  if (box[2] - box[0] < 0.015 || box[3] - box[1] < 0.015) return;
+  const t = {item: cur, box, person: null, source: "user"}; S.tags.push(t); changed(); sel = box.join(); renderStage();
+  openPop(e.clientX, e.clientY, {...t, tag: t});
+});
+
+// person picker
+let popBox = null, hl = 0;
+function openPop(x, y, b) {
+  popBox = b; const pop = $("pop"); pop.style.display = "block";
+  pop.style.left = Math.min(x + 8, innerWidth - 300) + "px"; pop.style.top = Math.min(y + 8, innerHeight - 380) + "px";
+  $("q").value = ""; hl = 0; renderPop(); $("q").focus();
+}
+function closePop() { $("pop").style.display = "none"; popBox = null; }
+function matches(q) {
+  q = q.trim().toLowerCase();
+  const ps = S.people.filter(p => !q || [p.name, p.role, p.role_guess, looks(p)].join(" ").toLowerCase().includes(q));
+  return ps.sort((a, b) => (!!b.name - !!a.name));
+}
+function renderPop() {
+  const q = $("q").value, ps = matches(q).slice(0, 40);
+  $("plist").innerHTML = ps.map((p, i) => `<div class="opt ${i === hl ? "hl" : ""}" data-id="${p.id}"><img src="${avatar(p)}"><div>${esc(label(p))}<small>${esc((p.role || p.role_guess || "").slice(0, 40))}</small></div></div>`).join("")
+    + (q.trim() ? `<div class="opt" data-new="1">＋ 新建人物 “${esc(q.trim())}”</div>` : "");
+  const t = popBox && popBox.tag;
+  const owner = t && t.person && t.person !== "_ignore" ? person(t.person) : null;
+  const isRef = owner && owner.portrait_ref && owner.portrait_ref.item === t.item && owner.portrait_ref.box.join() === t.box.join();
+  $("pacts").innerHTML = (owner ? `<button data-a="ref">${isRef ? "✓ 已是头像参考照" : "用这张做TA的头像"}</button>` : "")
+    + (t && t.person ? `<button data-a="clear">清除标记</button>` : "")
+    + (t && t.source === "user" ? `<button data-a="del">删除这个框</button>` : `<button data-a="ign">不用标（忽略这个框）</button>`)
+    + `<button data-a="close">关闭</button>`;
+  $("plist").querySelectorAll(".opt").forEach(el => el.onclick = () => el.dataset.new ? assign(newPerson(q.trim())) : assign(el.dataset.id));
+  $("pacts").querySelectorAll("button").forEach(el => el.onclick = () => act(el.dataset.a));
+}
+$("q").oninput = () => { hl = 0; renderPop(); };
+$("q").onkeydown = e => {
+  const n = $("plist").children.length;
+  if (e.key === "ArrowDown") { hl = Math.min(n - 1, hl + 1); renderPop(); e.preventDefault(); }
+  else if (e.key === "ArrowUp") { hl = Math.max(0, hl - 1); renderPop(); e.preventDefault(); }
+  else if (e.key === "Enter") { $("plist").children[hl]?.click(); }
+  else if (e.key === "Escape") closePop();
+};
+function tagFor(b) {
+  if (b.tag) return b.tag;
+  const t = {item: cur, box: b.box, person: null, source: "detector", score: b.score}; S.tags.push(t); return t;
+}
+function assign(pid) {
+  const t = tagFor(popBox); t.person = pid; const p = person(pid);
+  if (p && !p.appears_in.includes(cur)) p.appears_in.push(cur);
+  changed(); closePop(); renderAll();
+}
+function act(a) {
+  if (a === "close") return closePop();
+  const t = tagFor(popBox);
+  if (a === "ref") { const p = person(t.person); p.portrait_ref = {item: t.item, box: t.box}; }
+  if (a === "clear") t.person = null;
+  if (a === "ign") t.person = "_ignore";
+  if (a === "del") S.tags.splice(S.tags.indexOf(t), 1);
+  changed(); closePop(); renderAll();
+}
+function newPerson(name) {
+  const p = {id: "person_" + Date.now().toString(36), name: name || null, role: null, appears_in: [], persona: null, confirmed_by: name ? "user" : null};
+  S.people.unshift(p); changed(); return p.id;
+}
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  const ids = [...document.querySelectorAll(".th")].map(el => el.dataset.id), i = ids.indexOf(cur);
+  if (e.key === "ArrowRight" && i < ids.length - 1) { cur = ids[i + 1]; sel = null; renderAll(); }
+  if (e.key === "ArrowLeft" && i > 0) { cur = ids[i - 1]; sel = null; renderAll(); }
+  if (e.key === "Escape") closePop();
+});
+document.addEventListener("mousedown", e => { if ($("pop").style.display === "block" && !$("pop").contains(e.target) && !e.target.closest(".box")) closePop(); });
+
+function avatar(p) {
+  const t = S.tags.find(t => t.person === p.id);
+  if (t) return `/crop?item=${encodeURIComponent(t.item)}&box=${t.box.join(",")}`;
+  const ph = (p.appears_in || []).map(photo).find(Boolean);
+  return ph ? ph.thumb : "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+}
+function groupsOf(pid) { return S.groups.filter(g => (g.members || []).includes(pid)); }
+
+function renderRight() {
+  $("groups").innerHTML = S.groups.map((g, gi) => `<div class="group" data-gi="${gi}">
+      <div class="gh"><span class="gname" data-gi="${gi}" title="点击改名">${esc(g.name)}</span><select data-gi="${gi}" class="gkind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}" ${g.kind === k ? "selected" : ""}>${v}</option>`).join("")}</select><span class="x" data-gdel="${gi}" title="删除分组">✕</span></div>
+      <div class="chips">${(g.members || []).map(m => person(m) ? `<span class="chip" data-pid="${m}">${esc(label(person(m)))}<b data-rm="${gi}|${m}">×</b></span>` : "").join("") || `<span class="hint">把人物卡拖到这里</span>`}</div>
+      ${g.note ? `<div class="hint">${esc(g.note)}</div>` : ""}</div>`).join("");
+  document.querySelectorAll(".gname").forEach(el => el.onclick = () => { const g = S.groups[el.dataset.gi], v = prompt("分组名字", g.name); if (v && v.trim()) { g.name = v.trim(); changed(); renderAll(); } });
+  document.querySelectorAll(".gkind").forEach(el => el.onchange = () => { S.groups[el.dataset.gi].kind = el.value; changed(); });
+  document.querySelectorAll("[data-gdel]").forEach(el => el.onclick = () => { const g = S.groups[el.dataset.gdel]; if (confirm(`删除分组“${g.name}”？（不会删除里面的人）`)) { S.groups.splice(el.dataset.gdel, 1); changed(); renderRight(); } });
+  document.querySelectorAll("[data-rm]").forEach(el => el.onclick = e => { e.stopPropagation(); const [gi, m] = el.dataset.rm.split("|"); const g = S.groups[gi]; g.members = g.members.filter(x => x !== m); changed(); renderRight(); });
+  document.querySelectorAll(".chip").forEach(el => el.onclick = () => focusPerson(el.dataset.pid));
+  document.querySelectorAll(".group").forEach(el => dropTarget(el, d => {
+    if (!d.startsWith("person:")) return; const g = S.groups[el.dataset.gi], pid = d.slice(7);
+    g.members = g.members || []; if (!g.members.includes(pid)) { g.members.push(pid); changed(); renderRight(); }
+  }));
+  renderPeople();
+}
+function renderPeople() {
+  const ps = visiblePeople();
+  $("bulkhint").textContent = `（作用于下面列出的 ${ps.length} 个人；可以先搜索筛选）`;
+  $("people").innerHTML = ps.map(p => {
+    const n = new Set([...(p.appears_in || []), ...S.tags.filter(t => t.person === p.id).map(t => t.item)]).size;
+    const pr = p.persona || {};
+    return `<div class="card" draggable="true" data-pid="${p.id}">
+      <img class="av" src="${avatar(p)}" draggable="true" title="按住头像拖动：拖到分组 = 加入分组；拖到另一张人物卡 = 合并">
+      <div><input class="nm" value="${esc(p.name || "")}" placeholder="${esc(label(p))}（还没有名字）" data-pid="${p.id}">
+        <input class="rl" value="${esc(p.role || "")}" placeholder="${esc(p.role_guess || "身份 / 和你们的关系")}" data-pid="${p.id}">
+        <div class="lk" title="${esc(looks(p))}">${esc(looks(p))}</div>
+        <div class="row"><a data-go="${p.id}">照片 ${n} 张</a>${p.portrait_ref ? `<span class="hint" title="${esc(p.portrait_ref.item)}">已选头像照</span>` : ""}${groupsOf(p.id).map(g => `<span class="chip">${esc(g.name)}</span>`).join("")}<span class="x" data-pdel="${p.id}" title="删除这个人">✕</span></div>
+        <div class="row"><select class="mini" data-addg="${p.id}"><option value="">＋ 加入分组…</option>${S.groups.map((g, gi) => (g.members || []).includes(p.id) ? "" : `<option value="${gi}">${esc(g.name)}</option>`).join("")}</select>
+          <select class="mini" data-merge="${p.id}"><option value="">合并到…</option>${S.people.filter(q => q !== p).map(q => `<option value="${q.id}">${esc(label(q))}</option>`).join("")}</select></div>
+        ${pr.player ? `<div class="row"><span class="player">玩家（游戏里由你扮演）</span></div>` : `<div class="row"><label><input type="checkbox" data-npc="${p.id}" ${pr.npc ? "checked" : ""}> 做成游戏角色</label>
+          <select data-pres="${p.id}" ${pr.npc ? "" : "disabled"} title="${esc(PRESENCE[pr.presence || "event_only"][1])}">${Object.entries(PRESENCE).map(([k, [lb]]) => `<option value="${k}" ${(pr.presence || "event_only") === k ? "selected" : ""}>${lb}</option>`).join("")}</select></div>
+        ${pr.npc ? `<div class="hint" style="margin:2px 4px">${esc(PRESENCE[pr.presence || "event_only"][1])}</div>` : ""}`}
+        ${pr.player ? "" : dialogueBox(p)}
+      </div></div>`; }).join("");
+  document.querySelectorAll(".card").forEach(el => {
+    el.ondragstart = e => { if (e.target.tagName === "INPUT") return; e.dataTransfer.setData("text/plain", "person:" + el.dataset.pid); e.dataTransfer.effectAllowed = "move"; };
+    dropTarget(el, d => {
+      const into = person(el.dataset.pid);
+      if (d.startsWith("photo:")) { const pid = d.slice(6); if (!into.appears_in.includes(pid)) { into.appears_in.push(pid); changed(); renderPeople(); } return; }
+      if (d.startsWith("person:")) { const from = person(d.slice(7)); if (!from || from === into) return;
+        if (confirm(`把“${label(from)}”合并进“${label(into)}”？（同一个人；照片和分组会合在一起）`)) mergePeople(from, into); }
+    });
+  });
+  document.querySelectorAll("input.nm").forEach(el => el.onchange = () => { const p = person(el.dataset.pid); p.name = el.value.trim() || null; if (p.name) p.confirmed_by = "user"; changed(); renderAll(); });
+  document.querySelectorAll("input.rl").forEach(el => el.onchange = () => { person(el.dataset.pid).role = el.value.trim() || null; changed(); });
+  document.querySelectorAll("[data-npc]").forEach(el => el.onchange = () => { const p = person(el.dataset.npc); p.persona = el.checked ? {npc: true, presence: (p.persona || {}).presence || "event_only"} : null; changed(); renderPeople(); });
+  document.querySelectorAll("[data-pres]").forEach(el => el.onchange = () => { const p = person(el.dataset.pres); p.persona = {npc: true, presence: el.value}; changed(); renderPeople(); });
+  document.querySelectorAll("[data-go]").forEach(el => el.onclick = () => gotoPerson(el.dataset.go));
+  document.querySelectorAll("[data-dl]").forEach(el => el.onchange = () => { const p = person(el.dataset.dl); p.dialogue = p.dialogue || {};
+    p.dialogue[el.dataset.k] = el.value.split("\n").map(x => x.trim()).filter(Boolean); p.dialogue.source = "user"; changed(); renderPeople(); });
+  document.querySelectorAll("[data-addg]").forEach(el => el.onchange = () => { if (el.value === "") return; const g = S.groups[el.value]; g.members = g.members || [];
+    if (!g.members.includes(el.dataset.addg)) g.members.push(el.dataset.addg); changed(); renderRight(); });
+  document.querySelectorAll("[data-merge]").forEach(el => el.onchange = () => { if (!el.value) return; const from = person(el.dataset.merge), into = person(el.value);
+    if (confirm(`把“${label(from)}”合并进“${label(into)}”？（同一个人；照片和分组会合在一起）`)) mergePeople(from, into); else el.value = ""; });
+  document.querySelectorAll("[data-pdel]").forEach(el => el.onclick = () => { const p = person(el.dataset.pdel);
+    if (!confirm(`删除“${label(p)}”？（照片上的标记会清除）`)) return;
+    S.tags.forEach(t => { if (t.person === p.id) t.person = null; }); S.groups.forEach(g => g.members = (g.members || []).filter(m => m !== p.id));
+    S.people.splice(S.people.indexOf(p), 1); changed(); renderAll(); });
+}
+// what a person says in the game: one line per row; "later" only for people who stay after the wedding
+function dialogueBox(p) {
+  const d = p.dialogue || {}, later = p.persona && ["visits", "villager", "spouse"].includes(p.persona.presence);
+  const src = d.source === "user" ? "你改过" : d.source === "draft" ? "GameAnything 起草，待你确认" : "";
+  return `<div class="dl">婚礼上说的话 <span class="src">${src}</span>
+      <textarea rows="2" data-dl="${p.id}" data-k="wedding" placeholder="每行一句；留空就由 GameAnything 起草">${esc((d.wedding || []).join("\n"))}</textarea>
+      ${later ? `婚礼之后的日常台词<textarea rows="2" data-dl="${p.id}" data-k="later" placeholder="每行一句">${esc((d.later || []).join("\n"))}</textarea>` : ""}</div>`;
+}
+function mergePeople(from, into) {
+  S.tags.forEach(t => { if (t.person === from.id) t.person = into.id; });
+  into.appears_in = [...new Set([...(into.appears_in || []), ...(from.appears_in || [])])];
+  for (const k of ["name", "role", "role_guess", "looks", "persona"]) if (!into[k] && from[k]) into[k] = from[k];
+  S.groups.forEach(g => { if ((g.members || []).includes(from.id)) g.members = [...new Set(g.members.map(m => m === from.id ? into.id : m))]; });
+  S.people.splice(S.people.indexOf(from), 1); merged.push({from: from.id, into: into.id, at: new Date().toISOString().slice(0, 19)});
+  changed(); renderAll();
+}
+let goIdx = {};
+function gotoPerson(pid) {
+  const ids = [...new Set([...S.tags.filter(t => t.person === pid).map(t => t.item), ...(person(pid).appears_in || [])])].filter(photo);
+  if (!ids.length) return; goIdx[pid] = ((goIdx[pid] ?? -1) + 1) % ids.length; cur = ids[goIdx[pid]]; sel = null; renderAll(); focusPerson(pid);
+}
+function focusPerson(pid) {
+  document.querySelectorAll(".card").forEach(el => el.classList.toggle("hl", el.dataset.pid === pid));
+  document.querySelector(`.card[data-pid="${pid}"]`)?.scrollIntoView({block: "nearest", behavior: "smooth"});
+}
+function dropTarget(el, fn) {
+  el.ondragover = e => { e.preventDefault(); el.classList.add("over"); };
+  el.ondragleave = () => el.classList.remove("over");
+  el.ondrop = e => { e.preventDefault(); e.stopPropagation(); el.classList.remove("over"); fn(e.dataTransfer.getData("text/plain")); };
+}
+$("filter").oninput = renderPeople;
+function visiblePeople() { const q = $("filter").value.trim().toLowerCase(); return S.people.filter(p => !q || [p.name, p.role, p.role_guess, looks(p)].join(" ").toLowerCase().includes(q)); }
+$("npcall").onclick = () => { const ps = visiblePeople(); if (!confirm(`把列出的 ${ps.length} 个人都做成游戏角色？（已经选过的保持原来的出现方式）`)) return;
+  ps.forEach(p => { if (!(p.persona || {}).npc && !(p.persona || {}).player) p.persona = {npc: true, presence: "event_only"}; }); changed(); renderPeople(); };
+$("npcnone").onclick = () => { const ps = visiblePeople(); if (!confirm(`取消列出的 ${ps.length} 个人的“做成游戏角色”？`)) return;
+  ps.forEach(p => { if (!(p.persona || {}).player) p.persona = null; }); changed(); renderPeople(); };
+$("showlow").onchange = () => renderAll();
+$("savebtn").onclick = () => { dirty = true; save(); };
+$("addgroup").onclick = () => { const name = prompt("分组名字（例如：实验室同学）"); if (!name) return; S.groups.push({id: "group_" + Date.now().toString(36), name, kind: "friends", members: []}); changed(); renderRight(); };
+$("addperson").onclick = () => { const name = prompt("名字"); if (name === null) return; newPerson(name.trim()); renderAll(); };
+function renderAll() { renderLeft(); renderStage(); renderRight(); }
+load();
+</script>
+</body>
+</html>

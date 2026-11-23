@@ -1,0 +1,494 @@
+#!/usr/bin/env python3
+"""ga-steam: the Steam client inside a GameAnything sandbox image built with STEAM=1 (lab/images/common/install-steam.sh). Stdlib only.
+
+The user logs in to THEIR OWN Steam account in the sandbox's viewer (they type the password and approve Steam Guard themselves; this tool
+never sees, asks for or stores a password). The login cache lives in the sandbox volume (HOME), the games in the steamapps volume, so a
+new sandbox with the same volumes starts logged in and with the games already there.
+
+    ga-steam start               a D-Bus session, the openbox window manager and the Steam client on $DISPLAY (start the screen first:
+                                 ga-sdv up / ga-<game> up). The client runs without its CEF sandbox (-no-cef-sandbox): the CEF sandbox
+                                 needs mount namespaces, which a default Docker / Kubernetes container does not allow
+    ga-steam status [--json]     running?  logged on (since this start)?  login window up?  installed apps and their download state
+    ga-steam wait [--timeout S]  wait until Steam is logged on (exit 0) or the timeout passes (exit 2)
+    ga-steam install APPID [--wait [--timeout S]] [--lang zh|en]
+                                 ask the running client to install a game (steam://install/APPID): the user's own library only;
+                                 --wait: watch it until installed with the setup watchdog (Install window, publisher EULA: the user
+                                 decides, 0 bps, the slow commit on a network disk; a progress line at least every ~2 min);
+                                 exit 0 installed, 4 the user must act (the question is printed), 8 timeout
+    ga-steam app APPID [--json] [--watch]  one app's manifest: state, bytes downloaded / to download, installed depots, folder
+                                 (--watch: as install --wait, without a new request)
+    ga-steam owns APPID [--json] is the game in the signed-in account? installed = yes, Steam's "No licenses" = no, else unknown
+    ga-steam open downloads      show Steam's Downloads page (steam://open/downloads)
+    ga-steam shader-off          turn Steam's shader pre-caching off (config.vdf, edited while Steam is stopped; restarted after)
+    ga-steam shm-fix             a small /dev/shm (< 256 MB, e.g. Docker's / Kubernetes' 64 MB): steamwebhelper gets --disable-dev-shm-usage
+                                 (its wrapper script, kept at the same size: Steam checks its files by size and would reinstall the
+                                 client) and a running one is restarted by its exact pid
+                                 (Steam starts it again); without it the sign-in window's renderer crashes every ~2 s and never shows
+    ga-steam stop                steam -shutdown, then the exact pid if it is still there
+
+The login itself is `gameanything lab login steam` on the host (the same checks, from outside the sandbox).
+
+Every process is started with a pid file under /sandbox/run and stopped by that exact pid.
+"""
+import argparse
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HOME = Path(os.environ.get("HOME", "/home/player"))
+ROOT = Path(os.environ.get("GA_STEAM_ROOT", str(HOME / ".steam" / "debian-installation")))   # Ubuntu/Debian steam-installer layout
+APPS = ROOT / "steamapps"
+CONN_LOG = ROOT / "logs" / "connection_log.txt"
+SANDBOX = Path(os.environ.get("GA_SANDBOX", "/sandbox"))
+RUN, LOGS = SANDBOX / "run", SANDBOX / "logs"
+DISPLAY = os.environ.get("DISPLAY", ":99")
+STEAM = os.environ.get("GA_STEAM_BIN", "/usr/games/steam")
+FLAGS = ["-no-cef-sandbox", "-nochatui", "-nofriendsui"]
+HERE = Path(__file__).resolve().parent
+for _p in (HERE.parent.parent.parent, Path("/opt/gameanything/lib-src"), Path("/opt/gameanything/src")):   # the watchdog: a checkout, or the image's copy
+    try:                                # a folder the player cannot read (an image built with umask 077): no watchdog, not a crash
+        if (_p / "gameanything" / "watchdog.py").is_file() and str(_p) not in sys.path: sys.path.append(str(_p))
+    except OSError:
+        pass
+try:
+    from gameanything import watchdog  # noqa: E402
+except Exception:                       # an older image: the commands work without it (no watching)
+    watchdog = None
+
+
+def say(*a): print("[ga-steam]", *a, flush=True)
+
+
+def die(msg, code=1):
+    print(f"[ga-steam] {msg}", file=sys.stderr, flush=True); sys.exit(code)
+
+
+def container_started():
+    """When this container (its PID 1) started, in epoch seconds; 0 when unknown. A pid file older than that is from before a
+    `docker stop` / `docker start` (or another container on the same volume): its pid number now belongs to some other process."""
+    try:
+        ticks = int(Path("/proc/1/stat").read_text().rsplit(")", 1)[1].split()[19])
+        btime = int(next(l.split()[1] for l in Path("/proc/stat").read_text().splitlines() if l.startswith("btime ")))
+        return btime + ticks / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError, StopIteration): return 0
+
+
+def pid_alive(name):
+    try: pid = int((RUN / f"{name}.pid").read_text())
+    except (OSError, ValueError): return None
+    try:
+        if (RUN / f"{name}.pid").stat().st_mtime < container_started() - 1: return None    # from before a restart
+    except OSError: return None
+    try: os.kill(pid, 0)
+    except OSError: return None
+    try:                                     # a zombie counts as gone: in a container whose PID 1 is `sleep infinity` nobody reaps it
+        if Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] == "Z": return None
+    except (OSError, IndexError): pass
+    return pid
+
+
+def pgrep(pattern):
+    r = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True)
+    return [int(p) for p in r.stdout.split() if int(p) != os.getpid()]
+
+
+def start_bg(name, argv, log, env):
+    RUN.mkdir(parents=True, exist_ok=True); LOGS.mkdir(parents=True, exist_ok=True)
+    with open(LOGS / log, "ab") as f:
+        p = subprocess.Popen(argv, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env, start_new_session=True)
+    (RUN / f"{name}.pid").write_text(str(p.pid))
+    return p.pid
+
+
+def session_env():
+    env = dict(os.environ, DISPLAY=DISPLAY)
+    env.setdefault("XDG_RUNTIME_DIR", "/tmp/xdg-runtime")
+    Path(env["XDG_RUNTIME_DIR"]).mkdir(mode=0o700, parents=True, exist_ok=True)
+    bus = RUN / "dbus.address"
+    if pid_alive("dbus") and bus.is_file():
+        env["DBUS_SESSION_BUS_ADDRESS"] = bus.read_text().strip()
+    else:
+        RUN.mkdir(parents=True, exist_ok=True)
+        out = subprocess.run(["dbus-daemon", "--session", "--fork", "--print-address=1", "--print-pid=1"], capture_output=True, text=True,
+                             env=env, timeout=20).stdout.split()
+        if len(out) >= 2:
+            bus.write_text(out[0]); (RUN / "dbus.pid").write_text(out[1]); env["DBUS_SESSION_BUS_ADDRESS"] = out[0]
+    return env
+
+
+def ts_of(line):
+    m = re.match(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\]", line)
+    if not m: return 0
+    try: return int(time.mktime(time.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")))
+    except ValueError: return 0
+
+
+def logged_on(since=0):
+    """The newest '[Logged On' line of connection_log.txt written at or after `since` (the log keeps old sessions), else None.
+    The log has the account's numeric id, never a password; only the time is reported."""
+    try: lines = CONN_LOG.read_text(errors="replace").splitlines()
+    except OSError: return None
+    for line in reversed(lines):
+        if "[Logged On" in line and ts_of(line) >= since: return line[1:20]
+        if "[Logged Off" in line or "[Logging Off" in line: return None
+    return None
+
+
+def login_state():
+    """The Steam UI's own login state from logs/steamui_login.txt (e.g. WaitingForCredentials = the sign-in window is showing,
+    WaitingForLibraryReady = logged on). More reliable than window titles: the CEF sign-in window is not always found by xdotool."""
+    try: lines = (ROOT / "logs" / "steamui_login.txt").read_text(errors="replace").splitlines()[-20:]
+    except OSError: return None
+    for line in reversed(lines):
+        m = re.search(r"\[ (\w+) \]", line)
+        if m: return m.group(1)
+    return None
+
+
+def desktop_login_window():
+    """webhelper.txt says the CEF sign-in window opened (DesktopLoginWindow 'Sign in to ...'): seen when xdotool found no window."""
+    try: t = (ROOT / "logs" / "webhelper.txt").read_text(errors="replace")[-20000:]
+    except OSError: return False
+    return bool(re.search(r"DesktopLoginWindow .*'Sign in", t))
+
+
+def bootstrap():
+    """The first start's self-update from logs/bootstrap_log.txt: (stage downloading | extracting | installing | None, percent)."""
+    try: lines = (ROOT / "logs" / "bootstrap_log.txt").read_text(errors="replace").splitlines()[-30:]
+    except OSError: return None, None
+    for line in reversed(lines):
+        m = re.search(r"Downloading update \((\d[\d,]*) of (\d[\d,]*) KB\)", line)
+        if m:
+            n, tot = int(m.group(1).replace(",", "")), int(m.group(2).replace(",", ""))
+            return ("downloading", round(100 * n / tot) if tot else 0) if n < tot else ("extracting", 100)
+        if "Extracting package" in line: return "extracting", 100
+        if "Installing update" in line: return "installing", 100
+        if re.search(r"Update complete|Startup - updater built|Verification complete|Shutdown", line): return None, None
+    return None, None
+
+
+def started_at():
+    try: return int((RUN / "steam.started").read_text())
+    except (OSError, ValueError): return 0
+
+
+def windows(sizes=False):
+    """Visible window titles (with sizes=True: (title, width, height)). The first-start updater is a 400x129 window also called "Steam",
+    so the login window is told apart by its size."""
+    env = dict(os.environ, DISPLAY=DISPLAY)
+    r = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "."], capture_output=True, text=True, env=env)
+    out = []
+    for w in r.stdout.split():
+        n = subprocess.run(["xdotool", "getwindowname", w], capture_output=True, text=True, env=env).stdout.strip()
+        if not n: continue
+        if not sizes: out.append(n); continue
+        g = re.search(r"Geometry: (\d+)x(\d+)", subprocess.run(["xdotool", "getwindowgeometry", w], capture_output=True, text=True, env=env).stdout)
+        out.append((n, int(g.group(1)), int(g.group(2))) if g else (n, 0, 0))
+    return out
+
+
+def acf(path: Path) -> dict:
+    """A tiny VDF reader for appmanifest_*.acf: flat key/value pairs plus the InstalledDepots block."""
+    d, depots, cur, block = {}, {}, None, []
+    for raw in path.read_text(errors="replace").splitlines():
+        s = raw.strip()
+        toks = re.findall(r'"([^"]*)"', s)
+        if s == "{": block.append(cur); continue
+        if s == "}": block.pop() if block else None; continue
+        if len(toks) == 1: cur = toks[0]; continue
+        if len(toks) == 2:
+            if len(block) >= 2 and block[-2] == "InstalledDepots": depots.setdefault(block[-1], {})[toks[0]] = toks[1]
+            elif len(block) == 1: d[toks[0]] = toks[1]
+    d["InstalledDepots"] = depots
+    return d
+
+
+STATE = {4: "installed", 2: "update required", 1026: "downloading", 1030: "downloading", 1042: "downloading", 1062: "downloading",
+         6: "update required", 516: "update queued", 518: "update queued", 1538: "downloading"}
+
+
+def app_info(appid):
+    m = APPS / f"appmanifest_{appid}.acf"
+    if not m.is_file(): return {"appid": appid, "manifest": False}
+    a = acf(m)
+    flags = int(a.get("StateFlags", "0") or 0)
+    info = {"appid": appid, "manifest": True, "name": a.get("name"), "state_flags": flags,
+            "state": STATE.get(flags, "installed" if flags & 4 and not flags & 1024 else ("downloading" if flags & 1024 else f"flags {flags}")),
+            "bytes_downloaded": int(a.get("BytesDownloaded", 0) or 0), "bytes_to_download": int(a.get("BytesToDownload", 0) or 0),
+            "size_on_disk": int(a.get("SizeOnDisk", 0) or 0), "installdir": a.get("installdir"),
+            "installed_depots": a["InstalledDepots"], "platform_override": a.get("UserConfig", None)}
+    info["folder"] = str(APPS / "common" / (info["installdir"] or ""))
+    return info
+
+
+def cmd_start(a):
+    if pid_alive("steam"): say("Steam is already running"); return 0
+    env = session_env()
+    if not pid_alive("openbox") and subprocess.run(["which", "openbox"], capture_output=True).returncode == 0:
+        start_bg("openbox", ["openbox"], "openbox.log", env)
+    shm_fix(restart=False, quiet=True)          # a 64 MB /dev/shm: the sign-in window never shows without it (HICCUPS #26)
+    (RUN / "steam.started").write_text(str(int(time.time())))
+    pid = start_bg("steam", [STEAM, *FLAGS], "steam.log", env)
+    say(f"Steam started (pid {pid}); first start: the Debian 'Steam installer' notice (click Install), then a ~500 MB client update into {ROOT}; log {LOGS / 'steam.log'}")
+    return 0
+
+
+def status():
+    since = started_at()
+    ws = windows(sizes=True)
+    w = [f"{n} {x}x{y}" for n, x, y in ws]
+    helper = bool(pgrep(str(ROOT / "ubuntu12_64" / "steamwebhelper")))
+    running = bool(pid_alive("steam") or pgrep(str(ROOT / "ubuntu12_32" / "steam")))
+    lo = logged_on(since) if running else None     # no client running = not signed in now (10-29: after `docker start` the old start's log said "signed in")
+    updating = any(n == "Steam" and x < 500 for n, x, y in ws)                     # the updater's small progress window
+    apps = sorted(int(p.stem.split("_")[1]) for p in APPS.glob("appmanifest_*.acf")) if APPS.is_dir() else []
+    return {"running": running, "webhelper": helper, "updating": updating,
+            "installer_dialog": any(n == "Steam installer" for n, x, y in ws),
+            "logged_on_since_start": lo, "last_logged_on": logged_on(0), "client_installed": (ROOT / "ubuntu12_32" / "steam").exists(),
+            "login_cache": (ROOT / "config" / "loginusers.vdf").is_file(), "windows": w,
+            "login_window": bool(helper and not lo and (login_state() == "WaitingForCredentials" or desktop_login_window()
+                                                         or any(("Sign in" in n or n == "Steam") and x >= 500 for n, x, y in ws))),
+            "login_state": login_state(), "bootstrap": dict(zip(("stage", "pct"), bootstrap())), "apps": apps}
+
+
+def cmd_status(a):
+    d = status()
+    if a.json: print(json.dumps(d, indent=1)); return 0
+    for k, v in d.items(): print(f"{k:24} {v}")
+    return 0
+
+
+def cmd_wait(a):
+    end = time.time() + a.timeout
+    since = started_at()
+    dog = watchdog.Watchdog(watchdog.LocalBox(), "steam", "login", lang=a.lang, say=say) if watchdog else None
+    while time.time() < end:
+        t = logged_on(since)
+        if t: say(f"logged on at {t}"); return 0
+        if dog:
+            r = dog.tick()
+            if r["stop"]: return 4
+        time.sleep(3)
+    say(f"not logged on after {a.timeout} s"); return 2
+
+
+def watch_app(appid, timeout, lang, requested_at=None):
+    """Wait until appid is installed, with the watchdog. -> 0 installed, 4 the user must act, 8 timeout."""
+    if not watchdog:
+        say("no watchdog in this image: polling the manifest only")
+    dog = watchdog.Watchdog(watchdog.LocalBox(), "steam", "install", lang=lang, say=say,
+                            ctx={"app": appid, **({"install_requested_at": requested_at} if requested_at else {})},
+                            evidence=LOGS / "watchdog") if watchdog else None
+    end, last = time.time() + timeout, -10
+    while time.time() < end:
+        d = app_info(appid)
+        if d.get("state") == "installed": say(f"app {appid} installed ({d.get('name')})"); return 0
+        if dog:
+            r = dog.tick()
+            if r["stop"]: return 4
+            f = r["facts"]
+            if f.get("app_downloading") and f.get("app_bytes_total") and f["app_pct"] >= last + 10:
+                last = f["app_pct"] - f["app_pct"] % 10
+                say(f"app {appid}: {f['app_pct']}% ({f['app_bytes_dl'] // 2 ** 20} / {f['app_bytes_total'] // 2 ** 20} MB)")
+        time.sleep(5)
+    say(f"app {appid} not installed after {timeout} s"); return 8
+
+
+FEX = Path("/opt/gameanything/layers/fex")         # the arm64 image: Steam runs under FEX-Emu (install-steam-fex.sh)
+NAMES = {413150: ("Stardew Valley", "Stardew Valley"), 646570: ("Slay the Spire", "SlayTheSpire"), 105600: ("Terraria", "Terraria"),
+         1281930: ("tModLoader", "tModLoader")}       # the Steam Linux Runtime it needs comes by itself
+
+
+def queue_manifest(appid):
+    """An appmanifest asking for the app (StateFlags 1026 = update required + update started): what the client reads at its next
+    start. Under FEX `steam steam://install/APPID` never reaches the running client (sandbox-hiccups.md F3); this did. False: there is
+    one already, or the folder name is not known here."""
+    f = APPS / f"appmanifest_{appid}.acf"
+    if f.exists() or appid not in NAMES: return False
+    name, folder = NAMES[appid]
+    APPS.mkdir(parents=True, exist_ok=True)
+    f.write_text('"AppState"\n{\n' + "".join(f'\t"{k}"\t\t"{v}"\n' for k, v in (
+        ("appid", appid), ("universe", 1), ("name", name), ("StateFlags", 1026), ("installdir", folder), ("LastUpdated", 0),
+        ("SizeOnDisk", 0), ("buildid", 0), ("AutoUpdateBehavior", 0))) + "}\n")
+    return True
+
+
+def restart():
+    """Stop the client, wait until it is gone (F4: a start that overlaps the old client finds "Steam is already running" and both
+    end), start it again."""
+    cmd_stop(None)
+    for _ in range(60):
+        if not pgrep(str(ROOT / "ubuntu12_32" / "steam")): break
+        time.sleep(1)
+    return cmd_start(None)
+
+
+def cmd_install(a):
+    if not pid_alive("steam") and not pgrep(str(ROOT / "ubuntu12_32" / "steam")): die("Steam is not running: ga-steam start, then log in")
+    env = session_env()
+    if FEX.exists():
+        need = [i for i in ((a.appid, 105600) if a.appid == 1281930 else (a.appid,)) if queue_manifest(i)]   # tModLoader needs Terraria
+        if need: say(f"under FEX: queued {need} in Steam's manifests, restarting Steam"); restart(); time.sleep(5)
+    subprocess.run([STEAM, f"steam://install/{a.appid}"], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
+    say(f"asked Steam to install app {a.appid}; watch: ga-steam app {a.appid} --watch")
+    if a.wait: return watch_app(a.appid, a.timeout, a.lang, requested_at=time.time())
+    return 0
+
+
+def cmd_owns(a):
+    """installed = owned; Steam's own "No licenses" / "No subscription" for this app in content_log = not owned; else unknown (Steam
+    keeps the licence list in a file that is not readable)."""
+    d = app_info(a.appid)
+    if d.get("manifest") and d.get("state") == "installed": r = {"appid": a.appid, "owned": True, "how": "installed"}
+    else:
+        try: c = (ROOT / "logs" / "content_log.txt").read_text(errors="replace")[-200000:]
+        except OSError: c = ""
+        no = [ln for ln in c.splitlines() if str(a.appid) in ln and re.search(r"No licenses|No subscription|missing license", ln, re.I)]
+        r = {"appid": a.appid, "owned": False, "how": "steam: no licence"} if no else {"appid": a.appid, "owned": None, "how": "unknown until the install request"}
+    if a.json: print(json.dumps(r)); return 0
+    for k, v in r.items(): print(f"{k:8} {v}")
+    return 0
+
+
+def cmd_open(a):
+    if not pid_alive("steam") and not pgrep(str(ROOT / "ubuntu12_32" / "steam")): die("Steam is not running")
+    subprocess.run([STEAM, f"steam://open/{a.what}"], env=session_env(), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, timeout=60)
+    say(f"opened Steam's {a.what} page"); return 0
+
+
+def shader_off_text(t):
+    """config.vdf with ShaderCacheManager > EnableShaderBackgroundProcessing "0" (added when missing)."""
+    if re.search(r'"EnableShaderBackgroundProcessing"\s+"\d"', t):
+        return re.sub(r'("EnableShaderBackgroundProcessing"\s+)"\d"', r'\1"0"', t)
+    m = re.search(r'"ShaderCacheManager"\s*\{', t)
+    if m: return t[:m.end()] + '\n\t\t\t\t"EnableShaderBackgroundProcessing"\t\t"0"' + t[m.end():]
+    m = re.search(r'"Software"\s*\{\s*"Valve"\s*\{\s*"Steam"\s*\{', t)
+    if m: return t[:m.end()] + '\n\t\t\t\t"ShaderCacheManager"\n\t\t\t\t{\n\t\t\t\t\t"EnableShaderBackgroundProcessing"\t\t"0"\n\t\t\t\t}' + t[m.end():]
+    return None
+
+
+def cmd_shader_off(a):
+    """Edited only while Steam is stopped (it rewrites config.vdf on exit); Steam is started again when it was running."""
+    cfg = ROOT / "config" / "config.vdf"
+    if not cfg.is_file(): die(f"no {cfg} yet: start Steam and sign in once first")
+    was = bool(pid_alive("steam") or pgrep(str(ROOT / "ubuntu12_32" / "steam")))
+    if was: cmd_stop(a)
+    t = cfg.read_text(errors="replace")
+    new = shader_off_text(t)
+    if new is None: die("config.vdf has no Software/Valve/Steam block: not changed")
+    if new != t:
+        (cfg.parent / "config.vdf.bak-before-shader-off").write_text(t)
+        cfg.write_text(new)
+    say("shader pre-caching is off (EnableShaderBackgroundProcessing 0)")
+    if was: cmd_start(a)
+    return 0
+
+
+SHM_FLAG = "--disable-dev-shm-usage"
+
+
+def shm_mb():
+    try: v = os.statvfs("/dev/shm"); return v.f_blocks * v.f_frsize // (1 << 20)
+    except OSError: return None
+
+
+def shm_fix_text(t):
+    """The wrapper's `exec ./steamwebhelper "$@"` with the flag appended, at the SAME size (None: no such line, or no comment to
+    shorten). Steam's bootstrap checks its files by size at every start: a longer wrapper was "expected 623" -> the whole client
+    package was extracted again, the flag lost, and the next start did the same (lucy-qwen 2026-10-29). So a comment line of the
+    wrapper is shortened by as many bytes as the flag adds."""
+    if SHM_FLAG in t: return t
+    new, n = re.subn(r'(?m)^(exec \./steamwebhelper "\$@")[ \t]*$', r'\1 ' + SHM_FLAG, t)
+    if not n: return None
+    extra = len(new.encode()) - len(t.encode())
+    lines = new.split("\n")
+    cands = [i for i, x in enumerate(lines) if x.startswith("#") and not x.startswith("#!") and len(x) > extra]
+    if not cands: return None
+    i = max(cands, key=lambda k: len(lines[k]))
+    lines[i] = lines[i][:len(lines[i]) - extra]
+    return "\n".join(lines)
+
+
+def shm_fix(restart=True, quiet=False):
+    """-> "ok" (big enough / already set), "set", "no-client" (the wrapper is not there yet), "unknown" (wrapper changed shape)."""
+    mb = shm_mb()
+    if mb is None or mb >= 256: return "ok"
+    w = ROOT / "ubuntu12_64" / "steamwebhelper_sniper_wrap.sh"
+    try: t = w.read_text()
+    except OSError: return "no-client"
+    new = shm_fix_text(t)
+    if new is None:
+        if not quiet: say(f"/dev/shm is {mb} MB but {w} has no `exec ./steamwebhelper` line (or no comment to keep its size): not changed")
+        return "unknown"
+    if new == t: return "ok"
+    w.write_text(new)
+    if not quiet: say(f"/dev/shm is only {mb} MB: steamwebhelper now runs with {SHM_FLAG}")
+    if restart:                                  # the top webhelper process only (exact pid); Steam starts it again with the flag
+        for pid in pgrep(r"^\./steamwebhelper "):
+            try: os.kill(pid, signal.SIGTERM); say(f"restarted steamwebhelper (pid {pid})")
+            except OSError: pass
+    return "set"
+
+
+def cmd_shm_fix(a):
+    r = shm_fix()
+    if r == "no-client": say("the Steam client is not installed yet (first start): run this again after its self-update")
+    return 0 if r in ("ok", "set") else 3
+
+
+def cmd_app(a):
+    if a.watch: return watch_app(a.appid, a.timeout, a.lang)
+    d = app_info(a.appid)
+    if a.json: print(json.dumps(d, indent=1)); return 0
+    for k, v in d.items(): print(f"{k:20} {v}")
+    return 0
+
+
+def cmd_stop(a):
+    pid = pid_alive("steam")
+    if pid or pgrep(str(ROOT / "ubuntu12_32" / "steam")):
+        subprocess.run([STEAM, "-shutdown"], env=session_env(), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
+        for _ in range(40):
+            if not pgrep(str(ROOT / "ubuntu12_32" / "steam")): break
+            time.sleep(1)
+        if pid and pid_alive("steam"):
+            try: os.killpg(pid, signal.SIGTERM)
+            except OSError: pass
+    for n in ("openbox", "dbus"):
+        p = pid_alive(n)
+        if p:
+            try: os.kill(p, signal.SIGTERM)
+            except OSError: pass
+    for n in ("steam", "openbox", "dbus"): (RUN / f"{n}.pid").unlink(missing_ok=True)
+    (RUN / "dbus.address").unlink(missing_ok=True)
+    say("Steam stopped"); return 0
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="ga-steam", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("start").set_defaults(f=cmd_start)
+    s = sub.add_parser("status"); s.add_argument("--json", action="store_true"); s.set_defaults(f=cmd_status)
+    lang = os.environ.get("GAMEANYTHING_LANG", "en")
+    s = sub.add_parser("wait"); s.add_argument("--timeout", type=int, default=600); s.add_argument("--lang", default=lang); s.set_defaults(f=cmd_wait)
+    s = sub.add_parser("install"); s.add_argument("appid", type=int); s.add_argument("--wait", action="store_true")
+    s.add_argument("--timeout", type=int, default=7200); s.add_argument("--lang", default=lang); s.set_defaults(f=cmd_install)
+    s = sub.add_parser("app"); s.add_argument("appid", type=int); s.add_argument("--json", action="store_true"); s.add_argument("--watch", action="store_true")
+    s.add_argument("--timeout", type=int, default=7200); s.add_argument("--lang", default=lang); s.set_defaults(f=cmd_app)
+    s = sub.add_parser("owns"); s.add_argument("appid", type=int); s.add_argument("--json", action="store_true"); s.set_defaults(f=cmd_owns)
+    s = sub.add_parser("open"); s.add_argument("what", choices=["downloads", "library"]); s.set_defaults(f=cmd_open)
+    sub.add_parser("shader-off").set_defaults(f=cmd_shader_off)
+    sub.add_parser("shm-fix").set_defaults(f=cmd_shm_fix)
+    sub.add_parser("stop").set_defaults(f=cmd_stop)
+    a = ap.parse_args(argv)
+    return a.f(a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

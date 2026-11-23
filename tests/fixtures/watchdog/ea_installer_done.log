@@ -1,0 +1,4 @@
+[00DC:00E0][2026-10-29T19:10:55]i199: Detect complete, result: 0x0
+[00DC:00E0][2026-10-29T19:17:13]i200: Plan begin, 1 packages, action: Install
+[00DC:00E0][2026-10-29T19:17:13]i300: Apply begin
+[00DC:00E0][2026-10-29T19:17:33]i399: Apply complete, result: 0x0, restart: None, ba requested restart:  No

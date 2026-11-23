@@ -1,0 +1,12 @@
+{
+  "name": "gameanything",
+  "interface": { "displayName": "GameAnything" },
+  "plugins": [
+    {
+      "name": "gameanything",
+      "source": { "source": "url", "url": "https://github.com/AetherLabsAI/GameAnything.git" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Creative"
+    }
+  ]
+}

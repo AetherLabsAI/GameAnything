@@ -1,0 +1,55 @@
+# Minecraft: Java Edition: a built-in game package (gameanything/games/README.md). The code adapter is Minecraft in native/games.py;
+# the folders below document what it finds (the adapter is the source for them), the rest is read by the registry.
+id: minecraft
+order: 20
+title: Minecraft
+title_zh: 我的世界
+steam_appid: null
+engine: java (LWJGL)
+adapter: gameanything.native.games:Minecraft
+pin_var: GAMEANYTHING_MINECRAFT_DIR
+loader:
+  name: Fabric
+  type: fabric
+  url: https://fabricmc.net/use/installer/
+  fix: 用 fabricmc.net 的安装程序装 Fabric，再把 Fabric API 放进 mods 文件夹
+  fix_en: Install Fabric with the installer from fabricmc.net, then put Fabric API in the mods folder
+folders:
+  game:
+    note: the launcher's game folder (versions/ or launcher_profiles.json)
+  user:
+    windows: '{appdata}/.minecraft'
+    mac: '{home}/Library/Application Support/minecraft'
+    linux: '{home}/.minecraft'
+  mods: '{user}/mods'
+saves:
+- '{user}/saves'
+logs:
+- '{user}/logs/latest.log'
+process_names:
+  note: a java process told apart by --gameDir
+launch:
+  url: null
+  hint: 'the Minecraft Launcher: pick the Fabric profile (macOS: launch opens the Launcher and presses PLAY when its last used installation is the Fabric one)'
+toolchain:
+  kind: java
+  major: 21
+  purpose: Fabric mods with Gradle
+smoke: smoke/M2WSmoke
+lab:
+  supported: true
+tests:
+- tests/test_native.py
+desc: 方块沙盒，适合改编和回忆项目：成片的建筑和园林、人物和剧情演出的 mod，构建和试玩录像都能做
+desc_en: 'Block sandbox, made for adaptation and memory projects: mods with whole groups of buildings and gardens, characters and staged story scenes; builds and playthrough videos work'
+reload:
+  none: 我的世界在她的启动器里不能热重载 mod：改了要重开游戏。很多错误不开游戏也能查：gameanything native check --server（无界面的服务器）
+verified:                         # real round trips: docs/cross-platform.md ("Verified on real games")
+- {system: linux, date: '2026-10-24', result: pass}
+- {system: mac, date: '2026-10-29', result: pass, how: "macOS 14.6 Apple Silicon (docs/cross-platform.md): MacCraft (Minecraft 26.3, Fabric Loader 0.20.1, Fabric API 0.165.0, Java 25): build, check, install, launch, the mod in game, close, uninstall"}
+- {system: windows, date: '2026-11-01', result: pass, how: "a real Windows 11 PC (x64, Steam, OneDrive Documents): no Launcher: native minecraft login (device code on her phone) + download (26.3 + Fabric 0.19.5 + Fabric API), build (JDK 25), install, started offline from a folder outside AppData, '[M2W-smoke] loaded' in latest.log, close, uninstall"}
+sandbox:                          # the user's own Docker sandbox (gameanything/sandbox.py): the jar runs on every system: mount the user's folder anywhere, or download the files with a Microsoft account; played offline, no login
+  build: java
+  download: microsoft
+  three_d: true
+  gpu: required                   # 26.x opens no window on software OpenGL (sandbox test 2026-10-29): not supported in a Mac sandbox, native mode

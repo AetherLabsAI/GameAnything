@@ -1,0 +1,7 @@
+# an sdist (python -m build, uv build) carries what setup.py copies into the wheel's gameanything/_bundle/
+graft skills/gameanything
+include AGENTS.md
+graft docs/lessons/games
+graft lab/images/common/security
+graft plugins/dsh-web-search-openai-compatible
+global-exclude __pycache__ *.pyc

@@ -1,0 +1,11 @@
+"AppState"
+{
+	"appid"		"892970"
+	"name"		"Valheim"
+	"StateFlags"		"1026"
+	"installdir"		"Valheim"
+	"SizeOnDisk"		"4300000000"
+	"BytesToDownload"		"4300000000"
+	"BytesDownloaded"		"1073741824"
+	"BytesStaged"		"1073741824"
+}

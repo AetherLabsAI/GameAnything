@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""ga-sims4: The Sims 4 sandbox tool inside the GameAnything Sims 4 image (lab/images/sims4). Stdlib only.
+
+The image has NO game files and NO EA App. The game is the Windows build under the image's Wine (wine layer: Wine 11.19 WoW64, DXVK):
+  - downloaded by the EA App in the sandbox with the user's own EA account: `ga-ea setup`, `ga-ea install-app` (the user accepts EA's
+    User Agreement), `gameanything lab login ea` (the user signs in in the viewer), then the EA App downloads The Sims 4 into the
+    prefix on the sandbox volume (/sandbox/ea/pfx), or
+  - the user's own Windows install mounted READ-ONLY at /game (the folder with Game/Bin/TS4_x64.exe; the EA App must still be signed in).
+
+    ga-sims4 doctor | up | run | shot FILE | rec start|stop | log [-n N] | stop | down
+      up           the screen, x11vnc and the noVNC viewer (ga-ea needs them for the EA App)
+      run          the EA App (ga-ea start), then TS4_x64.exe under Wine + DXVK; wait for the game window
+      (no `layer`: the EA App's own download IS the sandbox's copy; a mounted /game is used read-only)
+
+Mods: gameanything native build|install --game sims4 <mod> (GAMEANYTHING_SIMS4_DIR = the prefix's Documents/Electronic Arts/The Sims 4,
+GAMEANYTHING_PYTHON37 = the image's CPython 3.7 for script mods).
+"""
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, "/usr/local/lib/gameanything")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))      # running from a checkout
+import galab  # noqa: E402
+from galab import GAME, LAYER, LOGS  # noqa: E402
+
+EA_HOME = Path(os.environ.get("GA_EA_HOME", "/sandbox/ea"))
+PFX = Path(os.environ.get("WINEPREFIX", str(EA_HOME / "pfx")))
+PREFIX_GAME = PFX / "drive_c" / "Program Files" / "EA Games" / "The Sims 4"
+EXE = Path("Game") / "Bin" / "TS4_x64.exe"
+LAUNCHER = "TS4_Launcher_x64.exe"   # the game's own launcher, with its own 「Sign in ... to activate」 window (#54)
+
+
+def game_dir():
+    for d in (GAME, PREFIX_GAME):
+        if (d / EXE).is_file(): return d
+    return None
+
+
+class Sims4(galab.Lab):
+    name, title, window = "ga-sims4", "The Sims 4", "^The Sims"     # the window is "The Sims™ 4" (a ™ before the 4)
+    relaunch_name = "TS4_x64.exe"      # `wine TS4_x64.exe` exits with 170 and the EA App starts the game again: run said "exited"
+    mount_hint = "download The Sims 4 with the EA App in the sandbox (ga-ea setup / install-app, gameanything lab login ea), or mount your Windows install: -v <folder>:/game:ro"
+
+    def game_build(self): return "windows" if game_dir() else "none"
+    def make_layer(self): return {"note": "nothing to copy: the game runs from the EA App's download or the read-only mount"}
+    def layer_ok(self): return game_dir() is not None
+    def log_file(self): return LOGS / "sims4.out"
+
+    def game_argv(self):
+        d = game_dir()
+        return ["wine", str(d / EXE)]
+
+    def game_env(self): return {"WINEPREFIX": str(PFX), "WINEDEBUG": "-all", "PULSE_SINK": "rec"}
+    def game_cwd(self): return (game_dir() or LAYER) / "Game" / "Bin"
+    def doctor_extra(self): return {"game_dir": str(game_dir()) if game_dir() else None, "prefix": str(PFX), "wine": os.path.exists("/opt/gameanything/wine/bin/wine")}
+
+    def cmd_layer(self, a):
+        self.say("no layer for The Sims 4: " + self.make_layer()["note"]); return 0
+
+    def cmd_run(self, a):
+        if not game_dir(): self.die(self.mount_hint, 3)
+        if not self.x_up(): self.cmd_up()
+        subprocess.run(["ga-ea", "start"], check=False)          # the game asks the EA App for its license
+        # and hands itself to the EA App to start again: an app still signing in drops that (2026-10-30: "exited" after a fresh start)
+        if not self.wait_signed_in(): self.die("the EA App asks to sign in (its session ran out): gameanything lab login ea, then run again", 4)
+        try: return super().cmd_run(a)
+        except SystemExit as e:
+            if e.code in (0, None) or not self.only_launcher_left(): raise
+        # 2026-10-31 (hiccups #54): right after she signed in, the EA App had not loaded her library yet, so the game's own launcher stayed
+        # on 「Sign in with your EA Account to activate」 and TS4_x64.exe never came. Closing the launcher and running again a minute later
+        # started the game: done here once, by its pids.
+        self.say(f"only The Sims 4's own launcher is left (its 「Sign in ... to activate」 window: the EA App had not loaded the library "
+                 f"yet): closing it and trying once more in {self.library_wait} s")
+        self.close_launcher()
+        time.sleep(self.library_wait)
+        if not self.wait_signed_in(): self.die("the EA App asks to sign in (its session ran out): gameanything lab login ea, then run again", 4)
+        return super().cmd_run(a)
+
+    library_wait = 60                  # seconds for the EA App to load the library before the second try
+
+    def only_launcher_left(self):
+        """TS4_Launcher_x64.exe runs and the game (TS4_x64.exe) does not: the launcher's own sign-in / activate window (#54)."""
+        return bool(galab.pids_by_comm(LAUNCHER)) and not galab.pids_by_comm(self.relaunch_name)
+
+    def close_launcher(self):
+        for p in galab.pids_by_comm(LAUNCHER):
+            try: os.kill(p, signal.SIGTERM)
+            except OSError: pass
+
+    def wait_signed_in(self, polls=90, login_polls=15, pause=2.0):
+        """False when the app sits on its sign-in window for ~30 s (2026-10-30: the saved session was gone after ~4 h; run waited 180 s
+        and the game then exited). A cold start shows that window only briefly before it signs in by itself."""
+        on_login = 0
+        for _ in range(polls):
+            r = subprocess.run(["ga-ea", "status", "--json"], capture_output=True, text=True)
+            try: st = json.loads(r.stdout.strip().splitlines()[-1])
+            except (ValueError, IndexError): st = {}
+            if st.get("signed_in"): return True
+            on_login = on_login + 1 if st.get("login_window") else 0
+            if on_login >= login_polls: return False
+            time.sleep(pause)
+        self.say("the EA App is not signed in yet: the game may not start (gameanything lab login ea)")
+        return True
+
+
+if __name__ == "__main__":
+    sys.exit(Sims4().main(__doc__))

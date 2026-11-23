@@ -1,0 +1,13 @@
+{
+  "name": "gameanything-opencode",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "OpenCode 2 plugin for GameAnything: exposes the gameanything CLI as one tool.",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/AetherLabsAI/GameAnything",
+  "exports": "./index.ts",
+  "peerDependencies": {
+    "@opencode/plugin": "*"
+  }
+}

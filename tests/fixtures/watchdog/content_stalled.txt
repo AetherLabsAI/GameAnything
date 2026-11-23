@@ -1,0 +1,13 @@
+[2026-10-29 12:50:15] AppID 105600 update started : download 0/797208576, store 0/797208576, reuse 0/0, delta 0/0, stage 0/0
+[2026-10-29 12:50:15] Current download rate: 18.904 Mbps
+[2026-10-29 12:51:15] Current download rate: 0.000 Mbps
+[2026-10-29 12:52:15] Current download rate: 0.000 Mbps
+[2026-10-29 12:53:15] Current download rate: 0.000 Mbps
+[2026-10-29 12:54:15] Current download rate: 0.000 Mbps
+[2026-10-29 12:55:15] Current download rate: 0.000 Mbps
+[2026-10-29 12:56:15] Current download rate: 0.000 Mbps
+[2026-10-29 12:57:15] Current download rate: 0.000 Mbps
+[2026-10-29 12:58:15] Current download rate: 0.000 Mbps
+[2026-10-29 12:59:15] Current download rate: 0.000 Mbps
+[2026-10-29 12:59:30] Got 32 download sources and 0 caching proxies via ContentServerDirectoryService::BYieldingGetServersForSteamPipe (CellID 10 / Launcher 0)
+[2026-10-29 13:00:15] Current download rate: 0.000 Mbps

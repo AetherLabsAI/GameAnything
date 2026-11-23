@@ -1,0 +1,7 @@
+kind: candidates
+title: 原创合成了两首舒缓的，听一下
+media: audio
+multi: false
+items:
+  - {key: A, title: A · 海边圆舞曲, desc: 三拍子，D 大调，钢琴加八音盒，1 分 23 秒, url: /build/m1/sounds/applause_i.wav}
+  - {key: B, title: B · 晨间誓言, desc: 四拍子，F 大调，钢琴分解和弦，2 分 12 秒, url: /build/m1/sounds/m2w_morning_vows.wav}

@@ -1,0 +1,58 @@
+# Model prices for `gameanything estimate` (USD per million tokens). Used only to scale the cost of past rounds that ran on Claude Sonnet.
+# REFRESH BEFORE RELEASE and whenever a provider changes prices: edit the numbers, set `prices_taken`, set verified: true only after checking the provider's price page.
+prices_taken: "2026-10-16"
+refresh_note: "价格取自 2026-10-16 作者记忆中的公开价目，没有联网核对；发布前和每次提价后请对着各家价格页刷新。 / Prices as remembered on 2026-10-16, not checked online; refresh from each provider's price page before release."
+
+# reference = the model the real past rounds ran on (Claude Sonnet via the lab harness). cost_ratio = blended price / reference blended price.
+# Blend = 0.7 * input + 0.3 * output (agent loops are input-heavy; prompt caching ignored). Fresh-model runs can also take more or fewer turns, so non-Claude ranges are widened (spread).
+reference: anthropic/claude-sonnet
+blend: {input: 0.7, output: 0.3}
+
+models:
+  # OpenRouter (OpenCode with an OpenRouter key: --agent opencode --model openrouter/<vendor>/<model>). Prices read from OpenRouter's own
+  # model list (https://openrouter.ai/api/v1/models, pricing.prompt / pricing.completion) on 2026-10-26: verified for that day.
+  - {match: "openrouter/anthropic/claude-sonnet-5*", name: "Claude Sonnet 5.x via OpenRouter", input: 2.0, output: 10.0, verified: true, taken: "2026-10-26", spread: [1.0, 1.0]}
+  - {match: "openrouter/anthropic/claude-sonnet-4*", name: "Claude Sonnet 4.x via OpenRouter", input: 3.0, output: 15.0, verified: true, taken: "2026-10-26", spread: [1.0, 1.0]}
+  - {match: "openrouter/moonshotai/kimi-k2.6",  name: "Kimi K2.6 via OpenRouter",     input: 0.65, output: 3.41, verified: true, taken: "2026-10-26", spread: [0.7, 2.0]}
+  - {match: "openrouter/moonshotai/kimi-k2.7*", name: "Kimi K2.7 via OpenRouter",     input: 0.67, output: 3.35, verified: true, taken: "2026-10-26", spread: [0.7, 2.0]}
+  - {match: "openrouter/z-ai/glm-5.3",          name: "GLM 5.3 via OpenRouter",       input: 0.07, output: 1.40, verified: true, taken: "2026-10-26", spread: [0.7, 2.0]}
+  - {match: "openrouter/google/gemini-2.5-pro", name: "Gemini 2.5 Pro via OpenRouter", input: 1.25, output: 10.0, verified: true, taken: "2026-10-26", spread: [0.7, 1.6]}
+  - {match: "openrouter/openai/gpt-5.5",        name: "GPT-5.5 via OpenRouter",       input: 5.0,  output: 30.0, verified: true, taken: "2026-10-26", spread: [0.7, 1.6]}
+  - {match: "openrouter/deepseek/deepseek-v3.2", name: "DeepSeek V3.2 via OpenRouter", input: 0.28, output: 0.42, verified: true, taken: "2026-10-26", spread: [0.7, 2.0]}
+  - {match: "openrouter/deepseek/deepseek-v4-pro", name: "DeepSeek V4 Pro via OpenRouter", input: 1.60, output: 3.20, verified: true, taken: "2026-10-31", spread: [0.7, 2.0]}
+  - {match: "openrouter/deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash via OpenRouter", input: 0.091, output: 0.182, verified: true, taken: "2026-10-31", spread: [0.7, 2.0]}
+  - {match: "openrouter/deepseek/deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash via OpenRouter", input: 0.045, output: 0.50, verified: true, taken: "2026-10-31", spread: [0.7, 2.0]}
+  - {match: "openrouter/qwen/qwen3-coder",      name: "Qwen3 Coder via OpenRouter",   input: 0.30, output: 1.00, verified: true, taken: "2026-10-26", spread: [0.7, 2.0]}
+  # Gemini CLI with a Gemini API key: the numbers OpenRouter passes through for the same models (2026-10-26), not checked on Google's
+  # price page. gemini-2.5-* is no longer offered to new Gemini API users (404 since 2026); current: gemini-3.1-pro-preview, gemini-3.8-flash.
+  - {match: "google/gemini-2.5-pro*",           name: "Gemini 2.5 Pro",               input: 1.25, output: 10.0, verified: false, spread: [0.7, 1.6]}
+  - {match: "google/gemini-3*-pro*",            name: "Gemini 3.x Pro",               input: 2.0,  output: 12.0, verified: false, spread: [0.7, 1.6]}
+  - {match: "google/gemini-3*-flash*",          name: "Gemini 3.x Flash",             input: 0.825, output: 4.125, verified: false, spread: [0.7, 2.0]}   # OpenRouter's gemini-3.8-flash price, 2026-10-26
+  - {match: "anthropic/claude-sonnet*", name: "Claude Sonnet", input: 3.0,  output: 15.0, verified: false, spread: [1.0, 1.0]}
+  - {match: "anthropic/claude-opus*",   name: "Claude Opus",   input: 5.0,  output: 25.0, verified: false, spread: [1.0, 1.0]}
+  - {match: "anthropic/claude-fable*",  name: "Claude Fable",  input: 10.0, output: 50.0, verified: false, spread: [1.0, 1.0]}   # Claude Fable 5 / 5.1 list price (2026-10-28); `claude --model fable` = claude-fable-5-1
+  - {match: "openai/gpt-5*",            name: "OpenAI GPT-5",  input: 1.25, output: 10.0, verified: false, spread: [0.7, 1.6]}
+  - {match: "openrouter/deepseek/*",    name: "DeepSeek via OpenRouter", input: 0.30, output: 1.20, verified: false, spread: [0.7, 2.0]}
+  - {match: "openrouter/qwen/*",        name: "Qwen via OpenRouter",     input: 0.30, output: 1.20, verified: false, spread: [0.7, 2.0]}
+
+# Defaults when --model is not given
+# dsh (DeepSeek Harness, a DeepSeek API key): no deepseek/* prices yet (not checked on DeepSeek's price page), so `m2w estimate` gives no amount.
+default_model: {claude-code: anthropic/claude-sonnet, codex: openai/gpt-5, opencode: openrouter/moonshotai/kimi-k2.6, gemini: google/gemini-3.1-pro-preview,
+                dsh: deepseek/deepseek-v4-pro}
+
+# Real past rounds (gamebench bench/trials/stardew_valley.m2w_*/a1/result.json agent_result; Claude Sonnet via the harness).
+# cost_usd null = not recorded (never invented).
+past_rounds:
+  - {trial: m2w_jukebox,        what: "record player (a feature)",      wall_s: 4082,  cost_usd: 6.60,  turns: 236, status: completed}
+  - {trial: m2w_spike_tech,     what: "tech spike (5 questions)",       wall_s: 4024,  cost_usd: 6.83,  turns: 194, status: completed}
+  - {trial: m2w_smoke_wedding,  what: "small wedding mod",              wall_s: 7107,  cost_usd: 11.46, turns: 236, status: completed}
+  - {trial: m2w_wedding_m1,     what: "wedding milestone 1 (ceremony)", wall_s: 17832, cost_usd: 39.04, turns: 446, status: build_failed*}
+  - {trial: m2w_wedding_m2,     what: "wedding milestone 2 (full day)", wall_s: 15286, cost_usd: 56.08, turns: 531, status: build_failed*}
+  - {trial: m2w_wedding_improve, what: "improvement day (14 items)",   wall_s: 18002, cost_usd: null,  turns: 475, status: agent_timeout}   # hit the 5 h cap; cost not recorded
+# *build_failed = the harness's own build check at the end; the mod itself was delivered and played (see the notes)
+
+# Size -> range taken from the rounds above (wall hours, Sonnet cost USD)
+sizes:
+  small:  {wall_h: [1.1, 2.0], cost_usd: [6.5, 11.5],  basis: [m2w_jukebox, m2w_spike_tech, m2w_smoke_wedding], what: "一个功能，比如唱片机 / a feature like the record player"}
+  medium: {wall_h: [2.0, 5.0], cost_usd: [11.5, 39.0], basis: [m2w_smoke_wedding, m2w_wedding_m1], what: "介于功能和整期之间 / between a feature and a full round (interpolated from two points)"}
+  large:  {wall_h: [4.2, 5.0], cost_usd: [39.0, 56.1], basis: [m2w_wedding_m1, m2w_wedding_m2, m2w_wedding_improve], what: "婚礼那样的一整期 / a full wedding round"}

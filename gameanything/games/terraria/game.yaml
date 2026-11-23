@@ -1,0 +1,63 @@
+# Terraria through tModLoader: a game package (gameanything/games/__init__.py; how to write one: skills/gameanything/references/add-a-game.md).
+# The registry reads this file; adapter.py adds the code hooks (build, .tmod checks, enabled.json, process lookup).
+id: terraria
+title: Terraria
+title_zh: 泰拉瑞亚
+order: 80
+steam_appid: 1281930              # tModLoader: a free Steam app of its own. Terraria itself is 105600 (owned and installed: tModLoader needs it)
+engine: xna-fna (.NET 8)
+adapter: adapter:Terraria
+pin_var: GAMEANYTHING_TERRARIA_DIR         # pins the tModLoader install folder (the one with tModLoader.dll); GAMEANYTHING_TERRARIA_GAME_DIR pins Terraria's, GAMEANYTHING_TERRARIA_USER_DIR the user folder (Mods/, Players/, Worlds/)
+loader:
+  name: tModLoader
+  type: tmodloader
+  url: https://store.steampowered.com/app/1281930/tModLoader/
+  fix: 在 Steam 里装上免费的 tModLoader（它是单独的一个游戏，要先有泰拉瑞亚）
+  fix_en: Install the free tModLoader in Steam (it is a separate game; Terraria has to be in your library too)
+requires:
+  - {steam_appid: 105600, title: Terraria, why: tModLoader reads Terraria's own Content folder}
+folders:
+  game: {marker: tModLoader.dll, steam_appid: 1281930}
+  user:
+    windows: "{documents}/My Games/Terraria/tModLoader"
+    linux: "{xdg_data}/Terraria/tModLoader"
+    mac: "{home}/Library/Application Support/Terraria/tModLoader"
+  mods: "{user}/Mods"               # <Name>.tmod files + enabled.json (Workshop mods live in Steam's workshop/content/1281930: not touched)
+saves: ["{user}/Players", "{user}/Worlds"]          # local saves only: Steam Cloud ones are in Steam's userdata/<id>/1281930/remote
+extra_files: ["{user}/Mods/enabled.json", "{user}/config.json"]
+logs: ["{game}/tModLoader-Logs/client.log"]
+process_names:                    # documentation: adapter.py finds `dotnet tModLoader.dll` by its command line
+  linux: [dotnet]
+  mac: [dotnet]
+  windows: [dotnet.exe]
+window_titles: []
+mac_click: hid                    # her Mac 2026-10-29: CGEventPostToPid clicks did not press tModLoader's language buttons (FNA/SDL, like Stardew)
+mac_keys: hid                     # and keys posted to the process (Esc, 1-9) did nothing in a world; real key presses did, after a click in the game picture
+launch:
+  url: steam://rungameid/1281930
+  hint: >-
+    Start tModLoader (its own entry in the Steam library), not Terraria. Test with a throwaway LOCAL character and world: in the
+    character / world list the cloud icon must be off (m2w backs up only local saves); never join a server with a test mod.
+toolchain: {kind: dotnet, major: 8, purpose: "tModLoader mods (net8.0) and tModLoader's own packer"}
+smoke: smoke/M2WSmoke
+lab:                              # gamebench hosting/launch_rt/terraria.sh on the Steam sandbox (wc-cities), guide hosting/modlab/terraria/rt/CLAUDE.md
+  supported: true
+  steam: true
+window:
+  how: 游戏里 设置 > 视频 > 窗口模式 选「窗口」（不要全屏），游戏会记住
+reload:
+  none: >-
+    泰拉瑞亚（tModLoader）不能由 m2w 热重载：tModLoader 只在它自己的菜单里重新加载 mod（创意工坊 > 开发模组 > 构建并重新加载，
+    或 模组 > 重新加载），那要在她的游戏里点。m2w 不点：关掉游戏、install 新的 .tmod、再开一次。把这一轮的改动攒在一起，开一次测完
+desc: 2D 沙盒冒险和建造，适合回忆和功能项目：物品、敌人、NPC 和小剧情的 mod（tModLoader），在服务器的实验室沙箱里构建（截图和短录像）或装进你自己的游戏都可以做；只在本地角色和世界里测试
+desc_en: >-
+  2D sandbox adventure and building, made for memory and feature projects: mods with items, enemies, NPCs and small stories
+  (tModLoader); builds in the server lab sandbox (screenshots and short recordings) or in your own game, tests only with a local character and world
+tests: [tests/games/test_terraria.py]
+verified:                         # real round trips (evidence: _agent/logs/2026-10-28/terraria-smoke)
+- {system: linux, date: '2026-10-28', result: pass, how: "tModLoader v2026.8.3.0 + Terraria 1.4.4.9 from real Steam in a lab sandbox as a player's PC; doctor, build, check, backup, install, gated launch twice, log + yellow chat line in a local world, close, restore byte-identical, uninstall"}
+- {system: mac, date: '2026-10-29', result: pass, how: "macOS 14.6 Apple Silicon (docs/cross-platform.md): MacTerra (tModLoader v2026.8.3.0, Terraria 1.4.4.9): build, check, install, launch, log, shot, drive into a world, the Mac Sword given, close, restore, uninstall"}
+- {system: windows, date: '2026-11-01', result: pass, how: "a real Windows 11 PC (x64, Steam, OneDrive Documents): tModLoader 2026.8.3.0 (first start: pick a language once); doctor, build, check, backup, install into the OneDrive Documents, Steam launch, '[M2W-smoke] loaded' in client.log, close, uninstall"}
+sandbox:                          # the user's own Docker sandbox (gameanything/sandbox.py): the sandbox runs the Linux build: mount a Linux install, else download it with Steam
+  build: linux
+  three_d: false

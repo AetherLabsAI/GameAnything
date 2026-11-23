@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""ga-sts: the Slay the Spire sandbox tool inside the GameAnything Slay the Spire image (lab/images/sts). Stdlib only.
+
+The image has NO game files. The user's own Slay the Spire folder (the Linux build: desktop-1.0.jar, jre/, and their saves/,
+preferences/, runs/, which the game keeps in its own folder) is mounted READ-ONLY at /game. ModTheSpire and BaseMod come from that
+folder (ModTheSpire.jar next to the game, BaseMod.jar in mods/) or from the Steam Workshop folder, mounted read-only at /workshop
+(<steamapps>/workshop/content/646570). Everything the sandbox writes goes to /sandbox:
+
+    /game        the user's SlayTheSpire folder, read-only               docker run -v <folder>:/game:ro
+    /workshop    optional: the Workshop items of the game, read-only     -v <steamapps>/workshop/content/646570:/workshop:ro
+    /sandbox     writable: the game layer, logs, screenshots, recordings
+
+    ga-sts doctor [--json]    what is mounted (linux / windows / mac / none), ModTheSpire + BaseMod found, the layer, the display
+    ga-sts layer [--force]    /sandbox/game: desktop-1.0.jar and jre/ are links into /game; saves/, preferences/, runs/ and the small
+                              files are copied; mods/ is fresh with only BaseMod (+ StSLib) and ModTheSpire.jar is put next to the game
+    ga-sts run [--mods a,b]   ModTheSpire with BaseMod + every mod in mods/ (or the given mod ids), straight to the main menu
+    ga-sts shot FILE | rec start|stop | log [-n N] | stop | down
+
+Mods: `gameanything native build --game slay_the_spire --install <mod folder>` (GAMEANYTHING_STS_DIR=/sandbox/game is set in the
+image): the jar goes to /sandbox/game/mods/. ModTheSpire loads mods only at start-up: install, then `ga-sts run`.
+"""
+import json
+import shutil
+import sys
+import zipfile
+from pathlib import Path
+
+sys.path.insert(0, "/usr/local/lib/gameanything")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))      # running from a checkout
+import galab  # noqa: E402
+from galab import GAME, LAYER, LOGS, copy_entries  # noqa: E402
+
+WORKSHOP = Path("/workshop")
+LINKED = ("desktop-1.0.jar", "jre")
+SKIPPED = ("mods", "steamapps", "sendToDevs", "SlayTheSpire.app")
+JARS = {"ModTheSpire": (1605060445, "ModTheSpire.jar"), "BaseMod": (1605833019, "BaseMod.jar"), "StSLib": (1609158507, "StSLib.jar")}
+
+
+def sts_build(d: Path) -> str:
+    if (d / "SlayTheSpire.app").is_dir() or (d / "Contents" / "Resources" / "desktop-1.0.jar").is_file(): return "mac"
+    if not (d / "desktop-1.0.jar").is_file(): return "none"
+    if (d / "SlayTheSpire.exe").exists(): return "windows"
+    if (d / "jre" / "bin" / "java").exists() or (d / "SlayTheSpire").exists(): return "linux"
+    return "none"
+
+
+def find_jar(what):
+    """ModTheSpire / BaseMod / StSLib: the copy in her game folder, else the Workshop item -> Path or None."""
+    wid, fn = JARS[what]
+    for p in (GAME / fn if what == "ModTheSpire" else GAME / "mods" / fn, WORKSHOP / str(wid) / fn,
+              GAME.parent.parent / "workshop" / "content" / "646570" / str(wid) / fn):
+        if p.is_file(): return p
+    return None
+
+
+def modid(jar: Path):
+    try:
+        with zipfile.ZipFile(jar) as z: return json.loads(z.read("ModTheSpire.json").decode("utf-8-sig"))["modid"]
+    except (zipfile.BadZipFile, KeyError, ValueError, OSError): return None
+
+
+class Sts(galab.Lab):
+    name, title, window = "ga-sts", "Slay the Spire", "Slay the Spire"
+    mount_hint = "mount your Slay the Spire folder (the one with desktop-1.0.jar): -v <folder>:/game:ro"
+    mods_arg = None
+
+    def game_build(self): return sts_build(GAME)
+
+    def build_hints(self):
+        return {"windows": "this is the Windows build; the sandbox runs the Linux build (download it in the sandbox with Steam, or use native mode)",
+                "mac": "this is the Mac build; the sandbox runs the Linux build (download it in the sandbox with Steam, or use native mode)"}
+
+    def make_layer(self):
+        mts, bm = find_jar("ModTheSpire"), find_jar("BaseMod")
+        if not (mts and bm):
+            self.die("ModTheSpire and BaseMod not found: subscribe to them in the Steam Workshop and mount the Workshop folder "
+                     "(-v <steamapps>/workshop/content/646570:/workshop:ro), or put ModTheSpire.jar in the game folder and BaseMod.jar in mods/", 3)
+        copied, _ = copy_entries(GAME, LAYER, link=LINKED, skip=lambda n: n in SKIPPED or n.startswith("hs_err_pid") or n == "ModTheSpire.jar")
+        shutil.copy2(mts, LAYER / "ModTheSpire.jar")
+        (LAYER / "mods").mkdir()
+        loaders = ["BaseMod"] + (["StSLib"] if find_jar("StSLib") else [])
+        for w in loaders: shutil.copy2(find_jar(w), LAYER / "mods" / JARS[w][1])
+        left = sorted(p.name for p in (GAME / "mods").glob("*.jar") if p.name not in {JARS[w][1] for w in loaders}) if (GAME / "mods").is_dir() else []
+        return {"copied": copied, "linked": [n for n in LINKED if (LAYER / n).is_symlink()], "modthespire_from": str(mts),
+                "loaders": [str(find_jar(w)) for w in loaders], "user_mods_left_out": left,
+                "saves": sorted(p.name for p in (LAYER / "saves").iterdir()) if (LAYER / "saves").is_dir() else []}
+
+    def layer_ok(self): return (LAYER / ".ga-layer.json").is_file() and (LAYER / "ModTheSpire.jar").is_file()
+    def log_file(self): return LOGS / "game.out"
+
+    def mod_ids(self):
+        if self.mods_arg: return ["basemod"] + [m for m in self.mods_arg.split(",") if m and m != "basemod"]
+        ids = [modid(j) for j in sorted((LAYER / "mods").glob("*.jar"))]
+        return ["basemod"] + sorted(i for i in ids if i and i != "basemod")
+
+    def game_argv(self):
+        java = LAYER / "jre" / "bin" / "java"
+        return [str(java) if java.exists() else "java", "-Xmx1500m", "-Dsun.java2d.xrender=false", "-jar", "ModTheSpire.jar",
+                "--skip-launcher", "--skip-intro", "--mods", ",".join(self.mod_ids())]
+
+    def game_env(self): return {"PULSE_SINK": "rec"}
+    def ready(self, text): return "publishPostInitialize" in text
+
+    def interesting(self, l):
+        return any(k in l for k in ("M2W", "Unable to find", "Exception", "- basemod", "- m2w", "Begin patching", "publishPostInitialize")) and len(l) < 300
+
+    def doctor_extra(self):
+        return {"modthespire": str(find_jar("ModTheSpire") or ""), "basemod": str(find_jar("BaseMod") or ""),
+                "layer_mods": sorted(p.name for p in (LAYER / "mods").glob("*.jar")) if (LAYER / "mods").is_dir() else []}
+
+    def main(self, doc, argv=None):
+        ap, sub = self.parser(doc)
+        sub.choices["run"].add_argument("--mods")
+        a = ap.parse_args(argv)
+        self.mods_arg = getattr(a, "mods", None)
+        return a.f(a)
+
+
+if __name__ == "__main__":
+    sys.exit(Sts().main(__doc__))

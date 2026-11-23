@@ -1,0 +1,11 @@
+kind: task
+title: 给照片里的人起名字
+body: 整理完素材后，照片里有一些人还没有名字。请在“人物”里框出每个人、起名字、拖进分组；这样台词和形象才不会张冠李戴。
+estimate: 约 10 分钟
+done_hint: 常出现的人都有名字，分好了组
+open: "#people/tag"
+en:
+  title: Name the people in the photos
+  body: After sorting, some people in the photos have no name yet. In People, box each person, name them and drag them into a group, so lines and looks do not get mixed up.
+  estimate: about 10 min
+  done_hint: Everyone who shows up often is named and grouped

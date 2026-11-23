@@ -1,0 +1,3 @@
+[2026-10-29 13:20:02] AppID 892970 state changed : Fully Installed,App Running,
+[2026-10-29 13:24:40] AppID 728880 update started : download 0/8710000000, store 0/8710000000, reuse 0/0, delta 0/0, stage 0/0
+[2026-10-29 13:25:40] Current download rate: 0.000 Mbps

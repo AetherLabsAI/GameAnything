@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# gameanything launcher for a clone or a plugin install (Claude Code, Cursor, Codex ... put a plugin's bin/ on PATH, or hooks/add-to-path.sh does).
+# Runs the gameanything of THIS checkout, in this order:
+#   1. <root>/.venv  (a clone where you ran `uv venv && uv pip install -e .`, or `python -m venv .venv && pip install -e .`)
+#   2. uv: an editable install of <root> in uv's cache (`uv run --no-project --with-editable`); first run ~30 s, writes no lock file
+#   3. python3 with <root> on PYTHONPATH (needs the dependencies yourself: `pip install -e <root>`)
+# A `uv tool install`ed gameanything does not need this file. GAMEANYTHING_NO_UV=1 (or the old M2W_NO_UV=1) skips step 2.
+set -euo pipefail
+SRC="${BASH_SOURCE[0]}"
+while [ -L "$SRC" ]; do
+  DIR="$(cd -P "$(dirname "$SRC")" && pwd)"
+  SRC="$(readlink "$SRC")"
+  [[ "$SRC" != /* ]] && SRC="$DIR/$SRC"
+done
+ROOT="$(cd -P "$(dirname "$SRC")/.." && pwd)"
+for exe in "$ROOT/.venv/bin/gameanything" "$ROOT/.venv/Scripts/gameanything.exe"; do
+  [ -x "$exe" ] && exec "$exe" "$@"
+done
+if command -v uv >/dev/null 2>&1 && [ -z "${GAMEANYTHING_NO_UV:-${M2W_NO_UV:-}}" ]; then
+  # --python: pyproject's requires-python (tests/test_packaging.py); --no-project alone takes uv's newest Python, which may lack wheels
+  exec uv run --quiet --no-project --python ">=3.10,<3.15" --with-editable "$ROOT" gameanything "$@"
+fi
+PY="$(command -v python3 || command -v python || true)"
+[ -n "$PY" ] || { echo "gameanything: neither uv nor python is on PATH. Install uv: https://docs.astral.sh/uv/" >&2; exit 1; }
+PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" exec "$PY" -m gameanything "$@"

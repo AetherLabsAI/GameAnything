@@ -1,0 +1,71 @@
+# Stardew Valley: a built-in game package (gameanything/games/README.md). The code adapter is Stardew in native/games.py;
+# the folders below document what it finds (the adapter is the source for them), the rest is read by the registry.
+id: stardew
+order: 10
+title: Stardew Valley
+title_zh: 星露谷物语
+steam_appid: 413150
+engine: xna-monogame (.NET 6)
+adapter: gameanything.native.games:Stardew
+pin_var: GAMEANYTHING_STARDEW_DIR
+loader:
+  name: SMAPI
+  type: smapi
+  url: https://smapi.io
+  fix: 从 smapi.io 下载 SMAPI 安装程序装上（它会自己找到游戏）
+  fix_en: Download the SMAPI installer from smapi.io and run it (it finds the game by itself)
+  extras:                         # frameworks some mods need (the adapter's extras(): a doctor hint, never an error; `check` refuses a content pack without it)
+  - name: Content Patcher
+    unique_id: Pathoschild.ContentPatcher
+    url: https://www.nexusmods.com/stardewvalley/mods/1915
+    for: content packs (ContentPackFor Pathoschild.ContentPatcher) - art, dialogue, maps, item / NPC data without code
+    sandbox: 2.9.1, built from its pinned source by `ga-sdv layer` (lab/images/stardew/install.sh)
+folders:
+  game:
+    marker: Stardew Valley.dll
+    note: the Steam / GOG folder; on macOS Contents/MacOS inside the app
+  user:
+    windows: '{appdata}/StardewValley'
+    mac: '{xdg_config}/StardewValley'
+    linux: '{xdg_config}/StardewValley'
+  mods: '{game}/Mods'
+saves:
+- '{user}/Saves'
+logs:
+- '{user}/ErrorLogs/SMAPI-latest.txt'
+process_names:
+  mac:
+  - StardewModdingAPI
+  - Stardew Valley
+  linux:
+  - StardewModdingAPI
+  - Stardew Valley
+  windows:
+  - StardewModdingAPI.exe
+  - Stardew Valley.exe
+launch:
+  url: steam://rungameid/413150
+toolchain:
+  kind: dotnet
+  major: 6
+  purpose: SMAPI C# mods (net6.0, Pathoschild.Stardew.ModBuildConfig)
+smoke: smoke/M2WSmoke
+lab:
+  supported: true
+  pool_name: stardew_valley
+  script: stardew_valley
+tests:
+- tests/test_native.py
+desc: 田园生活模拟，适合回忆和功能项目：农场、小镇、人物、对话和节日事件的 mod，构建、试玩录像和装进你自己的游戏都能做
+desc_en: 'Farming life sim, made for memory and feature projects: mods with the farm, the town, people, dialogue and festival events; builds, playthrough videos and installing into your own game all work'
+window:
+  how: 游戏里 选项 > 窗口模式 选「窗口」，游戏会记住
+reload:
+  none: 星露谷（SMAPI）不能热重载 C# mod：改了代码要重开游戏。把这一轮的改动攒在一起，开一次测完（Content Patcher 内容包可以在 SMAPI 控制台输入 patch reload <id>，但那要在她的电脑上打字，m2w 不做）
+verified:                         # real round trips: docs/cross-platform.md ("Verified on real games")
+- {system: linux, date: '2026-10-24', result: pass}
+- {system: mac, date: '2026-10-25', result: pass}
+- {system: windows, date: '2026-11-01', result: pass, how: "a real Windows 11 PC (x64, Steam, OneDrive Documents): SMAPI 4.5.2; doctor, build, check, backup, install, launch through StardewModdingAPI.exe (Steam's Play starts the plain game on Windows), '[M2W-smoke] loaded' in SMAPI-latest.txt, close, uninstall"}
+sandbox:                          # the user's own Docker sandbox (gameanything/sandbox.py): the sandbox runs the Linux build: mount a Linux install, else download it with Steam
+  build: linux
+  three_d: false

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GameAnything · 首页</title>
+<style>
+:root { --bg:#f6f5f2; --panel:#fff; --ink:#222; --muted:#777; --line:#e3e0da; --accent:#3b6fd6; --ok:#2e9d5b; --warn:#d88a1c; --bad:#c94a3a; --run:#7a5bd6; }
+* { box-sizing:border-box; }
+body { margin:0; font:14px/1.5 -apple-system, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; color:var(--ink); background:var(--bg); }
+header { display:flex; align-items:center; gap:12px; padding:8px 14px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+header h1 { font-size:16px; margin:0; } header a { color:var(--accent); text-decoration:none; } .sp { flex:1; }
+.hint { color:var(--muted); font-size:12px; }
+main { max-width:1100px; margin:0 auto; padding:14px; display:grid; grid-template-columns: 1fr 260px; gap:14px; }
+@media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:14px; }
+h2 { font-size:15px; margin:0 0 10px; }
+.todo a, .todo span { display:block; padding:9px 12px; border-radius:8px; background:#fff7e8; border:1px solid #f1d9a8; margin-bottom:8px; color:var(--ink); text-decoration:none; }
+.todo a:hover { border-color:var(--warn); } .todo a::after { content:" →"; color:var(--warn); }
+.none { color:var(--muted); }
+.steps { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; }
+.step { flex:1 0 108px; border:1px solid var(--line); border-radius:8px; padding:8px; text-decoration:none; color:var(--ink); background:#fff; position:relative; }
+a.step:hover { border-color:var(--accent); }
+.step .n { font-size:12px; color:var(--muted); } .step b { display:block; font-size:14px; margin:2px 0 4px; }
+.step .s { font-size:12px; color:var(--muted); }
+.badge { display:inline-block; font-size:11px; padding:0 6px; border-radius:9px; color:#fff; }
+.done .badge { background:var(--ok); } .wait .badge { background:var(--warn); } .run .badge { background:var(--run); } .todo-s .badge { background:#bbb; }
+.step.wait { border-color:#f1d9a8; background:#fffaf0; } .step.run { border-color:#d6ccf3; background:#f8f6ff; }
+.ms { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-top:1px solid var(--line); } .ms:first-child { border-top:0; }
+.ms .what { font-size:12px; color:var(--muted); } .ms a { color:var(--accent); text-decoration:none; white-space:nowrap; }
+.kv { display:flex; justify-content:space-between; padding:3px 0; } .kv span:last-child { color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">GameAnything</h1><span class="sp"></span>
+  <a href="/people">人物标记</a><a href="/looks">形象确认</a><a href="/play">试玩检查</a>
+</header>
+<main>
+  <div>
+    <section><h2>现在需要你做的</h2><div class="todo" id="todo"></div></section>
+    <section><h2>进度</h2><div class="steps" id="steps"></div></section>
+    <section><h2>每一期</h2><div id="builds"></div></section>
+  </div>
+  <aside>
+    <section><h2>发给模型的内容</h2><div id="sent"></div>
+      <p class="hint">素材只在你的电脑上。这里记着每一次把内容（缩小的照片、裁出的脸）发给模型的请求，明细在 privacy_ledger.yaml。</p></section>
+    <section><h2>存档备份</h2><div id="backups"></div></section>
+  </aside>
+</main>
+<script>
+const LABEL = {done:"完成", wait:"等你", run:"进行中", todo:"未开始"};
+const MS = {accepted:"已确认", built:"已做完，等你看", building:"正在做", next:"下一期", planned:"计划中"};
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function load() {
+  const d = await (await fetch("/api/home")).json();
+  document.getElementById("title").textContent = "GameAnything · " + d.title;
+  document.getElementById("todo").innerHTML = d.todo.length
+    ? d.todo.map(t => t.href ? `<a href="${esc(t.href)}">${esc(t.text)}</a>` : `<span>${esc(t.text)}（在对话里告诉 agent）</span>`).join("")
+      + (d.more_todo ? `<p class="hint">还有 ${d.more_todo} 件，做完上面的再显示。</p>` : "")
+    : `<p class="none">暂时没有。agent 在做的事情见下面的进度。</p>`;
+  document.getElementById("steps").innerHTML = d.steps.map((s, i) => {
+    const cls = `step ${s.state === "todo" ? "todo-s" : s.state}`;
+    const inner = `<span class="n">${i + 1}</span><b>${esc(s.title)}</b><span class="badge">${LABEL[s.state]}</span><div class="s">${esc(s.text)}</div>`;
+    return s.href ? `<a class="${cls}" href="${esc(s.href)}">${inner}</a>` : `<div class="${cls}">${inner}</div>`;
+  }).join("");
+  document.getElementById("builds").innerHTML = d.builds.map(b => `<div class="ms">
+      <div style="flex:1"><b>${esc(b.name)}</b> <span class="hint">${MS[b.status] || esc(b.status)}${b.request ? " · 你的意见已转成下一轮" : ""}</span>
+      ${b.what ? `<div class="what">${esc(b.what)}</div>` : ""}</div>
+      ${b.play ? `<a href="/play?m=${esc(b.m)}">看录像 →</a>` : ""}</div>`).join("") || `<p class="none">还没有开始构建。</p>`;
+  const s = d.side;
+  document.getElementById("sent").innerHTML = `<div class="kv"><span>请求次数</span><span>${s.requests}</span></div>`
+    + Object.entries(s.by_purpose).map(([k, v]) => `<div class="kv"><span>${k === "portrait" ? "生成头像" : esc(k)}</span><span>${v}</span></div>`).join("")
+    + `<div class="kv"><span>生图花费</span><span>$${s.image_cost_usd}</span></div>`;
+  document.getElementById("backups").innerHTML = s.backups.length ? s.backups.map(esc).join("<br>")
+    : `<p class="none">还没有。装进你自己的游戏之前，会先备份你的存档。</p>`;
+}
+load();
+</script>
+</body>
+</html>

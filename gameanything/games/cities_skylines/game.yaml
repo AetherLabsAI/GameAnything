@@ -1,0 +1,58 @@
+# Cities: Skylines: a built-in game package (gameanything/games/README.md). The code adapter is CitiesSkylines in native/games.py;
+# the folders below document what it finds (the adapter is the source for them), the rest is read by the registry.
+id: cities_skylines
+order: 30
+title: 'Cities: Skylines'
+title_zh: 城市：天际线
+steam_appid: 255710
+engine: unity-mono (.NET 3.5)
+adapter: gameanything.native.games:CitiesSkylines
+pin_var: GAMEANYTHING_CITIES_DIR
+loader:
+  name: built-in
+  type: builtin
+folders:
+  game:
+    marker: Cities_Data/Managed/ICities.dll
+  user:
+    windows: '{localappdata}/Colossal Order/Cities_Skylines'
+    mac: '{home}/Library/Application Support/Colossal Order/Cities_Skylines'
+    linux: '{xdg_data}/Colossal Order/Cities_Skylines'
+  mods: '{user}/Addons/Mods'
+saves:
+- '{user}/Saves'
+extra_files:
+- '{user}/userGameState.cgs'
+logs:
+- Player.log (Unity)
+process_names:
+  mac:
+  - Cities
+  linux:
+  - Cities.x64
+  windows:
+  - Cities.exe
+launch:
+  url: steam://rungameid/255710
+toolchain:
+  kind: dotnet
+  major: 8
+  purpose: the mod DLL (net35 against the game's Managed/); needed on macOS
+smoke: ../../worlds/cities_skylines/smoke
+lab:
+  supported: true
+  script: cities
+  steam: true
+tests:
+- tests/test_native.py
+desc: 城市建造，适合回忆项目：照真实的地形、道路和地标建一座城，加上回忆点和镜头，构建和试玩录像都能做
+desc_en: 'City builder, made for memory projects: a city built from the real terrain, roads and landmarks, with memory spots and camera shots; builds and playthrough videos work'
+window:
+  how: Steam 启动选项加 -screen-fullscreen 0 -screen-width 1280 -screen-height 720（Unity 的参数）
+verified:                         # real round trips: docs/cross-platform.md ("Verified on real games")
+- {system: mac, date: '2026-10-24', result: pass}
+- {system: linux, date: '2026-10-25', result: pass}
+- {system: windows, date: '2026-11-01', result: pass, how: "a real Windows 11 PC (x64, Steam, OneDrive Documents): doctor, build, check, backup, install, Cities.exe started directly (steam_appid.txt; the Paradox Launcher waits for PLAY), '[M2W-smoke] enabled' in output_log.txt, close, uninstall"}
+sandbox:                          # the user's own Docker sandbox (gameanything/sandbox.py): the sandbox runs the Linux build: mount a Linux install, else download it with Steam
+  build: linux
+  three_d: true

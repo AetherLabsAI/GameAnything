@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
+<defs><linearGradient id="s" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2E1065"/><stop offset="1" stop-color="#701A75"/></linearGradient></defs>
+<rect width="320" height="180" fill="url(#s)"/>
+<g transform="translate(160 150)">
+<g transform="rotate(-24) translate(-30 -112)"><rect width="60" height="86" rx="6" fill="#FEF3C7" stroke="#F59E0B" stroke-width="3"/><rect x="8" y="10" width="44" height="34" rx="3" fill="#FDE68A"/><circle cx="30" cy="27" r="10" fill="#F97316"/><rect x="8" y="52" width="44" height="4" rx="2" fill="#D6D3D1"/><rect x="8" y="62" width="30" height="4" rx="2" fill="#D6D3D1"/></g>
+<g transform="rotate(-8) translate(-30 -120)"><rect width="60" height="86" rx="6" fill="#EDE9FE" stroke="#8B5CF6" stroke-width="3"/><rect x="8" y="10" width="44" height="34" rx="3" fill="#C4B5FD"/><path d="M30 16 l6 12 h-12z" fill="#6D28D9"/><rect x="8" y="52" width="44" height="4" rx="2" fill="#D6D3D1"/><rect x="8" y="62" width="34" height="4" rx="2" fill="#D6D3D1"/></g>
+<g transform="rotate(8) translate(-30 -120)"><rect width="60" height="86" rx="6" fill="#FCE7F3" stroke="#DB2777" stroke-width="3"/><rect x="8" y="10" width="44" height="34" rx="3" fill="#FBCFE8"/><rect x="22" y="18" width="16" height="18" rx="2" fill="#BE185D"/><rect x="8" y="52" width="44" height="4" rx="2" fill="#D6D3D1"/><rect x="8" y="62" width="26" height="4" rx="2" fill="#D6D3D1"/></g>
+<g transform="rotate(24) translate(-30 -112)"><rect width="60" height="86" rx="6" fill="#DCFCE7" stroke="#16A34A" stroke-width="3"/><rect x="8" y="10" width="44" height="34" rx="3" fill="#BBF7D0"/><circle cx="30" cy="27" r="9" fill="none" stroke="#15803D" stroke-width="4"/><rect x="8" y="52" width="44" height="4" rx="2" fill="#D6D3D1"/><rect x="8" y="62" width="32" height="4" rx="2" fill="#D6D3D1"/></g>
+</g>
+<g fill="#F5D0FE" opacity=".8"><circle cx="30" cy="30" r="2"/><circle cx="290" cy="24" r="2"/><circle cx="270" cy="70" r="1.5"/><circle cx="50" cy="90" r="1.5"/></g>
+<g transform="translate(24 128)"><rect width="56" height="26" rx="13" fill="#DC2626"/><text x="28" y="18" font-family="sans-serif" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">♥ 72</text></g>
+<g transform="translate(240 128)"><rect width="56" height="26" rx="13" fill="#2563EB"/><text x="28" y="18" font-family="sans-serif" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">⚡ 3</text></g>
+</svg>

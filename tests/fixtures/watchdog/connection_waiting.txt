@@ -1,0 +1,2 @@
+[2026-10-29 11:36:01] [0,0] IPv6 HTTP connectivity test timed out
+[2026-10-29 11:36:03] [0,0] Connected

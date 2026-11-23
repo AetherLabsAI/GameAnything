@@ -1,0 +1,8 @@
+kind: options
+title: 对话有点流水账，有几种改法，可以组合
+multi: true
+items:
+  - {key: A, title: 少说多演, desc: 每人只留最打动人的一两句，其余用动作：拥抱、擦眼泪、宾客的反应, recommended: true}
+  - {key: B, title: 自动播放, desc: 对话自己往下走，想快就随时按键, recommended: true}
+  - {key: C, title: 可以玩的回忆片段, desc: 讲到"妈妈每天坐一个多小时公交车"时，插进一段 10 秒能玩的小回忆}
+  - {key: D, title: 跟读誓词, desc: 金弟兄每读一句，你按节奏键跟着念，花柱上的花一圈圈亮起来, cost: 多一天}

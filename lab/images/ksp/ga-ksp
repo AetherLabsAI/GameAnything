@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""ga-ksp: the Kerbal Space Program sandbox tool inside the GameAnything KSP image (lab/images/ksp). Stdlib only.
+
+The image has NO game files. The user's own KSP 1 folder (the Linux build: KSP.x86_64, KSP_Data/, GameData/, saves/) is mounted
+READ-ONLY at /game; KSP keeps its saves and settings.cfg in that folder too. Everything the sandbox writes goes to /sandbox:
+
+    /game        the user's KSP folder, read-only                docker run -v <folder>:/game:ro
+    /sandbox     writable: the game layer, logs, screenshots, recordings
+
+    ga-ksp doctor [--json]    what is mounted (linux / windows / mac / none), the layer, the display (GPU or not)
+    ga-ksp layer [--force]    /sandbox/game: the sandbox's own copy. KSP_Data/ (3.5 GB) and the player libraries are links into /game;
+                              GameData/Squad* (1.1 GB) is copied (KSP opens its part files read-write: links into a read-only folder
+                              stop the loading screen), the user's own mods in GameData/ are left out, saves/ and settings.cfg are
+                              copied (windowed 1280x720, no pop-ups)
+    ga-ksp up                 the screen: Xorg on the NVIDIA GPU when the sandbox has one (docker run --gpus all -e NVIDIA_DRIVER_CAPABILITIES=all),
+                              else Xvfb (software OpenGL: slow); x11vnc, the noVNC viewer on 6080
+    ga-ksp run                start KSP from the layer, wait for the main menu (2-5 minutes the first time)
+    ga-ksp shot FILE | rec start|stop | log [-n N] | stop | down
+
+Mods: `gameanything native build --game ksp --install <mod folder>` (GAMEANYTHING_KSP_DIR=/sandbox/game is set in the image):
+the plugin goes to /sandbox/game/GameData/<Mod>/. KSP loads plugins only at start-up: install, then `ga-ksp run`.
+"""
+import re
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, "/usr/local/lib/gameanything")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))      # running from a checkout
+import galab  # noqa: E402
+from galab import GAME, LAYER, LOGS, copy_entries  # noqa: E402
+
+LINKED = ("KSP_Data", "UnityPlayer.so", "UnityPlayer_s.debug", "LinuxPlayer_s.debug")
+SKIPPED = ("GameData", "KSP.log", "Player.log", "KSPLauncher.x86_64", "KSPLauncher_Data", "steamapps", "Screenshots", "kslab", "Logs")
+GAME_OWN = ("Squad", "SquadExpansion")
+SETTINGS = (("SCREEN_RESOLUTION_WIDTH", 1280), ("SCREEN_RESOLUTION_HEIGHT", 720), ("FULLSCREEN", "False"), ("CHECK_FOR_UPDATES", "False"),
+            ("SEND_PROGRESS_DATA", "False"), ("SHOW_VERSION_WATERMARK", "False"), ("SHOW_ANALYTICS_DIALOG", "False"),
+            ("SHOW_WHATSNEW_DIALOG", "False"), ("MISSION_SHOW_EXPANSION_INFO", "False"), ("SERENITY_SHOW_EXPANSION_INFO", "False"))
+
+
+def ksp_build(d: Path) -> str:
+    if (d / "KSP.app").is_dir() or (d / "Contents" / "MacOS").is_dir(): return "mac"
+    if (d / "KSP_x64.exe").exists(): return "windows"
+    if (d / "KSP.x86_64").exists() and (d / "KSP_Data" / "Managed" / "Assembly-CSharp.dll").is_file(): return "linux"
+    return "none"
+
+
+def windowed(text: str) -> str:
+    """settings.cfg with the sandbox's window and no pop-ups (keys that are missing are added)."""
+    for k, v in SETTINGS:
+        if re.search(rf"^{k} = .*$", text, flags=re.M): text = re.sub(rf"^{k} = .*$", f"{k} = {v}", text, flags=re.M)
+        else: text = text.rstrip("\n") + f"\n{k} = {v}\n"
+    return text
+
+
+class Ksp(galab.Lab):
+    name, title, window = "ga-ksp", "Kerbal Space Program", "^Kerbal Space Program"
+    mount_hint = "mount your KSP folder (the one with KSP.x86_64, GameData/ and saves/): -v <folder>:/game:ro"
+
+    def game_build(self): return ksp_build(GAME)
+
+    def build_hints(self):
+        return {"windows": "this is the Windows build; the sandbox runs the Linux build (download it in the sandbox with Steam, or use native mode)",
+                "mac": "this is the Mac build; the sandbox runs the Linux build (download it in the sandbox with Steam, or use native mode)"}
+
+    def make_layer(self):
+        copied, _ = copy_entries(GAME, LAYER, link=LINKED, skip=lambda n: n in SKIPPED)
+        gd = LAYER / "GameData"; gd.mkdir()
+        own, left = [], []
+        for e in sorted((GAME / "GameData").iterdir()):
+            if e.name in GAME_OWN and e.is_dir():
+                shutil.copytree(e, gd / e.name, symlinks=True); own.append(e.name)
+            elif e.is_dir(): left.append(e.name)
+        (LAYER / "Screenshots").mkdir(exist_ok=True)
+        s = LAYER / "settings.cfg"
+        s.write_text(windowed(s.read_text(errors="replace") if s.exists() else ""))
+        return {"copied": copied, "linked": [n for n in LINKED if (LAYER / n).is_symlink()],
+                "gamedata_copied": own, "user_mods_left_out": left, "saves": sorted(p.name for p in (LAYER / "saves").iterdir()) if (LAYER / "saves").is_dir() else []}
+
+    def layer_ok(self): return (LAYER / ".ga-layer.json").is_file() and (LAYER / "KSP.x86_64").exists()
+    def log_file(self): return LOGS / "Player.log"
+
+    def game_argv(self):
+        w, h = galab.size()
+        return [str(LAYER / "KSP.x86_64"), "-screen-width", str(w), "-screen-height", str(h), "-screen-fullscreen", "0", "-logFile", str(self.log_file())]
+
+    def game_env(self): return {"PULSE_SINK": "rec"}
+
+    def ready(self, text): return "to MAINMENU" in text
+
+    def interesting(self, l):
+        return any(k in l for k in ("M2W", "AssemblyLoader: Loading assembly", "Scene Change", "Exception")) and "Squad" not in l
+
+    def doctor_extra(self):
+        mods = sorted(p.name for p in (LAYER / "GameData").iterdir() if p.is_dir()) if (LAYER / "GameData").is_dir() else []
+        return {"layer_gamedata": mods}
+
+
+if __name__ == "__main__":
+    sys.exit(Ksp().main(__doc__))

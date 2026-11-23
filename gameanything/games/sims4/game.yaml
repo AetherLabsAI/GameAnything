@@ -1,0 +1,57 @@
+# The Sims 4: a built-in game package (gameanything/games/README.md). The code adapter is Sims4 in native/games.py;
+# the folders below document what it finds (the adapter is the source for them), the rest is read by the registry.
+id: sims4
+order: 60
+title: The Sims 4
+title_zh: 模拟人生 4
+steam_appid: 1222670
+engine: custom (Python 3.7 scripts)
+adapter: gameanything.native.games:Sims4
+pin_var: GAMEANYTHING_SIMS4_DIR
+loader:
+  name: built-in (Options.ini)
+  type: script
+folders:
+  game:
+    note: 'informational: Steam, the EA app''s folder or /Applications'
+  user:
+    windows: '{documents}/Electronic Arts/The Sims 4'
+    mac: '{home}/Documents/Electronic Arts/The Sims 4'
+    linux: <Proton / Wine prefix>/drive_c/users/<user>/Documents/Electronic Arts/The Sims 4
+  mods: '{user}/Mods'
+saves:
+- '{user}/saves'
+extra_files:
+- '{user}/Options.ini'
+- '{user}/Mods/Resource.cfg'
+logs:
+- '{user}/lastException*.txt'
+process_names:
+  windows:
+  - TS4_x64.exe
+  mac:
+  - The Sims 4
+  linux:
+  - TS4_x64.exe
+launch:
+  url: steam://rungameid/1222670 (Steam copies only)
+toolchain:
+  kind: python37
+  purpose: .ts4script (.pyc of Python 3.7)
+smoke: ../../worlds/sims4/smoke
+lab:
+  supported: true
+tests:
+- tests/test_native.py
+- tests/test_sims4_venue.py
+desc: 模拟人生，适合回忆和改编项目：人物、家和邻里关系、剧情事件的 mod（脚本加数据包）；构建和装进你自己的游戏可以做，试玩录像还没接入
+desc_en: 'Life simulation, made for memory and adaptation projects: mods with people, homes, relationships and story events (scripts plus a data package); builds and installing into your own game work,
+  playthrough videos are not connected yet'
+reload:
+  none: 模拟人生 4 不能热重载脚本和数据包：改了要重开游戏。把这一轮的改动攒在一起，开一次测完
+verified:                         # real round trips: docs/cross-platform.md ("Verified on real games")
+- {system: mac, date: '2026-10-24', result: pass}
+sandbox:                          # the user's own Docker sandbox (gameanything/sandbox.py): the Windows build under Wine: mount it on Windows, else download it with the EA App
+  build: windows
+  download: ea
+  three_d: true

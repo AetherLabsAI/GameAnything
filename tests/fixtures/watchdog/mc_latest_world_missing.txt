@@ -1,0 +1,3 @@
+[12:40:02] [Render thread/INFO]: Setting user: Player
+[12:40:09] [Render thread/INFO]: Sound engine started
+[12:40:10] [Render thread/ERROR]: Failed to Quick Play: Could not find a world with the provided identifier: GA Download Test

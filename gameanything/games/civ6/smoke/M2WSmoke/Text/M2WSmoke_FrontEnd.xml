@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Front end (UpdateText in FrontEndActions): the main menu's last button keeps its meaning and gets the smoke marker. -->
+<GameData>
+  <LocalizedText>
+    <Replace Tag="LOC_MAIN_MENU_EXIT_TO_DESKTOP" Language="en_US">
+      <Text>Exit to Desktop [M2W-smoke]</Text>
+    </Replace>
+  </LocalizedText>
+</GameData>

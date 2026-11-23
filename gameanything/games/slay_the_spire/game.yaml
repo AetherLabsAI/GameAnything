@@ -1,0 +1,57 @@
+# Slay the Spire: a built-in game package (gameanything/games/README.md). The code adapter is SlayTheSpire in native/games.py;
+# the folders below document what it finds (the adapter is the source for them), the rest is read by the registry.
+id: slay_the_spire
+order: 40
+title: Slay the Spire
+title_zh: 杀戮尖塔
+steam_appid: 646570
+engine: java (libGDX, LWJGL 2)
+adapter: gameanything.native.games:SlayTheSpire
+pin_var: GAMEANYTHING_STS_DIR
+loader:
+  name: ModTheSpire + BaseMod
+  type: modthespire
+  url: https://steamcommunity.com/sharedfiles/filedetails/?id=1605060445
+folders:
+  game:
+    marker: desktop-1.0.jar
+  user: '{game}'
+  mods: '{game}/mods'
+saves:
+- '{game}/saves'
+- '{game}/preferences'
+- '{game}/runs'
+logs:
+- '{game}/sendToDevs/logs/SlayTheSpire.log'
+process_names:
+  mac:
+  - SlayTheSpire
+  linux:
+  - SlayTheSpire
+  windows:
+  - SlayTheSpire.exe
+window_titles:
+- Modded Slay the Spire
+- Slay the Spire
+launch:
+  url: steam://run/646570
+toolchain:
+  kind: java
+  major: 11
+  purpose: ModTheSpire mods (javac --release 8)
+smoke: ../../worlds/slay_the_spire/smoke
+lab:
+  supported: true
+tests:
+- tests/test_native.py
+desc: 卡牌构筑闯关，适合玩法项目：一个新角色的卡牌、遗物、敌人和事件的 mod，构建、平衡模拟和试玩录像都能做
+desc_en: 'Deck-building roguelike, made for gameplay projects: a mod with a new character''s cards, relics, enemies and events; builds, balance simulation and playthrough videos work'
+reload:
+  none: 杀戮尖塔（ModTheSpire）不能热重载：改了要重开游戏。把这一轮的改动攒在一起，开一次测完
+verified:                         # real round trips: docs/cross-platform.md ("Verified on real games")
+- {system: linux, date: '2026-10-24', result: pass}
+- {system: mac, date: '2026-10-25', result: pass}
+- {system: windows, date: '2026-11-01', result: pass, how: "a real Windows 11 PC (x64, Steam, OneDrive Documents): ModTheSpire + BaseMod from the Workshop; doctor, build (JDK 25), check, backup, install, ModTheSpire started with the game's jre (--skip-launcher, BaseMod copied next to it for the run), '[M2W-smoke] loaded' in SlayTheSpire.log, close, uninstall"}
+sandbox:                          # the user's own Docker sandbox (gameanything/sandbox.py): the sandbox runs the Linux build: mount a Linux install, else download it with Steam
+  build: linux
+  three_d: false

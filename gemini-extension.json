@@ -1,0 +1,6 @@
+{
+  "name": "gameanything",
+  "version": "0.0.1",
+  "description": "Turn your memories (wedding, trip, photos) into playable content inside a game you own. Guides the agent through the whole GameAnything workflow with the gameanything CLI.",
+  "contextFileName": "AGENTS.md"
+}

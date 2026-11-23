@@ -1,0 +1,1 @@
+The GameAnything smoke test: logs "[M2W-smoke] loaded" and says hello in the chat when you enter a world.

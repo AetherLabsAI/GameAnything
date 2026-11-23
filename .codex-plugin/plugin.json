@@ -1,0 +1,38 @@
+{
+  "name": "gameanything",
+  "version": "0.0.1",
+  "description": "Turn your memories (wedding, trip, photos) into playable content inside a game you own. Guides the agent through the whole GameAnything workflow with the gameanything CLI.",
+  "author": {
+    "name": "Wenyi Wu",
+    "url": "https://github.com/WenyiWU0111"
+  },
+  "homepage": "https://github.com/AetherLabsAI/GameAnything",
+  "repository": "https://github.com/AetherLabsAI/GameAnything",
+  "license": "Apache-2.0",
+  "keywords": [
+    "memories",
+    "games",
+    "stardew-valley",
+    "game-modding",
+    "agent-skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "GameAnything",
+    "shortDescription": "Turn your memories into a playable game world",
+    "longDescription": "Guides the agent through ingesting your photos and videos locally, confirming people and the day with you in a browser UI, and building the result into your own copy of Stardew Valley.",
+    "category": "Creative",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Turn my wedding photos into a Stardew Valley mod",
+      "Continue my GameAnything project",
+      "Set up GameAnything"
+    ],
+    "brandColor": "#6d4aff",
+    "developerName": "Wenyi Wu",
+    "websiteURL": "https://github.com/AetherLabsAI/GameAnything"
+  }
+}

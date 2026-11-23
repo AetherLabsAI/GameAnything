@@ -1,0 +1,257 @@
+# Materials of vanilla villager walk sheets (first 4 rows = walking down / right / up / left), labelled by eye from per-colour
+# masks (`gameanything art masks <villager>`). A colour maps to one material, or to several by frame-local row range when the game
+# reuses one colour in two places (e.g. Haley's eye colour is also her shoe colour): [[material, first_row, last_row], ...].
+# Materials a look does not recolour keep their vanilla colours. The game's art is not copied anywhere: the tool reads the
+# sheets from the user's own unpacked Content folder.
+#
+# fit: what this villager is a good base for (upper / lower body), to help pick parts for a person.
+
+Harvey:
+  fit: {upper: "adult man, short hair, glasses, jacket over shirt and tie", lower: "trousers, dress shoes"}
+  colors:
+    "#24150f": outline
+    "#252e30": outline
+    "#14251d": jacket
+    "#274c36": jacket
+    "#447651": jacket
+    "#4f9a5e": jacket
+    "#98b346": jacket
+    "#4b1a20": hair
+    "#8b3728": hair
+    "#b2610b": hair
+    "#6b2316": hair
+    "#71333a": mustache
+    "#ffd59f": skin
+    "#ee8b61": skin
+    "#d0d0d0": shirt
+    "#909d9d": shirt
+    "#890d0d": tie
+    "#510e2e": tie
+    "#5c2f1f": pants
+    "#3a1b33": pants
+    "#9ebed6": glasses
+    "#595b7a": glasses
+    "#ccf1ff": glasses
+    "#7e7597": glasses
+
+Haley:
+  fit: {upper: "young woman, long straight hair, short-sleeved blouse", lower: "knee-length skirt, socks, flat shoes"}
+  colors:
+    "#ad3559": hair
+    "#ffc046": hair
+    "#f98143": hair
+    "#ffe467": hair
+    "#ffffb0": hair
+    "#fff1b2": hair
+    "#960037": outline
+    "#630024": outline
+    "#ffc8a8": skin
+    "#ed7361": skin
+    "#88c0e8": eyes
+    "#0b405b": [[eyes, 0, 19], [shoes, 20, 31]]
+    "#1496a9": [[eyes, 0, 19], [shoes, 20, 31]]
+    "#edf4ff": [[eyes, 0, 19], [socks, 20, 31]]
+    "#4f8fff": top
+    "#205bdb": top
+    "#002d8e": top
+    "#710077": skirt
+    "#d865ac": skirt
+    "#ff97d3": skirt
+    "#b534ae": skirt
+    "#002538": shoes
+
+Penny:
+  fit: {upper: "young woman, shoulder-length hair with bangs, blouse under a dress", lower: "short dress, socks, shoes"}
+  colors:
+    "#600a37": outline
+    "#6a0a24": outline
+    "#690924": outline
+    "#660724": outline
+    "#660822": outline
+    "#7f2837": [[hair, 0, 15], [dress, 16, 31]]
+    "#ad1f23": hair
+    "#e26124": hair
+    "#f7be4f": [[hair, 0, 14], [top, 15, 31]]
+    "#f99e48": [[hair, 0, 12], [skin, 13, 31]]
+    "#f8c49e": skin
+    "#f799a5": skin
+    "#d36358": [[skin, 0, 17], [dress, 18, 31]]
+    "#ad4d2f": dress
+    "#490833": [[eyes, 0, 17], [shoes, 18, 31]]
+    "#aab2c1": [[eyes, 0, 17], [socks, 18, 31]]
+    "#004149": eyes
+    "#008891": eyes
+    "#e2ecff": eyes
+    "#843d7a": shoes
+    "#d57cb6": shoes
+
+Emily:
+  fit: {upper: "young woman, short bob, sleeveless long dress", lower: "long dress to the ankles"}
+  colors:
+    "#02308b": hair
+    "#1454c8": hair
+    "#1b8ef6": hair
+    "#71dcfb": hair
+    "#270e68": hair
+    "#7a004a": outline
+    "#fcb283": skin
+    "#f98072": skin
+    "#f26651": skin
+    "#fdbfb9": skin
+    "#17083f": eyes
+    "#f4e4ff": eyes
+    "#b7a9c3": eyes
+    "#f1dcff": eyes
+    "#d67900": eyes
+    "#970019": dress
+    "#c80718": dress
+    "#c6362b": dress
+    "#e22e1e": dress
+    "#5d0028": dress
+    "#000041": shoes
+    "#000b7e": shoes
+
+Kent:
+  fit: {upper: "adult man, short hair, open jacket over a T-shirt (no glasses)", lower: "jeans, boots"}
+  defaults: {contrast: {hair: 0.45}}        # his spiky orange highlights read as dots on dark hair
+  colors:
+    "#162218": jacket
+    "#333826": jacket
+    "#4e5b2a": jacket
+    "#652300": outline
+    "#763900": outline
+    "#561b07": outline
+    "#000000": outline
+    "#9e5c00": [[hair, 0, 14], [shoes, 15, 31]]
+    "#280d00": [[eyes, 0, 14], [shoes, 15, 31]]
+    "#e69300": hair
+    "#ffc88c": skin
+    "#ef8f5b": skin
+    "#a2320d": skin
+    "#d84211": skin
+    "#50bbd8": [[eyes, 0, 15], [pants, 16, 31]]
+    "#dff2ff": eyes
+    "#ddf1ff": eyes
+    "#0f2e68": pants
+    "#2c80cc": pants
+    "#878787": shirt
+    "#cccccc": shirt
+
+Demetrius:
+  fit: {upper: "adult man, short hair, shirt (no jacket, no glasses)", lower: "trousers, shoes, belt"}
+  defaults: {colors: {accent: "#2b2626"}}   # the gold belt buckle stands out on most outfits
+  colors:
+    "#330b18": outline
+    "#2c1e14": outline
+    "#39210f": [[hair, 0, 12], [shoes, 13, 31]]
+    "#553118": hair
+    "#662424": [[hair, 0, 9], [skin, 10, 31]]
+    "#8a4117": skin
+    "#b66330": skin
+    "#422612": skin
+    "#bda08d": eyes
+    "#ffe7d4": eyes
+    "#004b9d": shirt
+    "#00268b": shirt
+    "#000b45": shirt
+    "#222028": pants
+    "#323037": pants
+    "#4c4c4c": pants
+    "#777777": pants
+    "#f69500": accent
+    "#ffe700": accent
+
+Caroline:
+  fit: {upper: "middle-aged woman, hair up with bangs, short-sleeved top", lower: "long skirt, shoes"}
+  colors:
+    "#0e2e3f": hair
+    "#105e4d": hair
+    "#109134": hair
+    "#58cc0f": hair
+    "#0b2214": hair
+    "#743548": outline
+    "#000000": outline
+    "#000022": outline
+    "#ffc68e": skin
+    "#e3805e": skin
+    "#eb6357": skin
+    "#f5e2ff": eyes
+    "#aa97ff": eyes
+    "#003377": top
+    "#0084e2": top
+    "#1fdbff": top
+    "#6b4000": [[top, 0, 22], [shoes, 23, 31]]
+    "#4729b5": skirt
+    "#231765": skirt
+    "#745dd8": skirt
+    "#411800": shoes
+    "#2c001d": shoes
+    "#d1ad00": accent
+    "#bb7700": accent
+
+Jodi:
+  fit: {upper: "middle-aged woman, long hair in a braid, long-sleeved top", lower: "trousers, shoes"}
+  colors:
+    "#68291d": hair
+    "#c17727": hair
+    "#a0532c": hair
+    "#e89e32": hair
+    "#441f21": outline
+    "#ffc493": skin
+    "#ffca9b": skin
+    "#e86d6d": skin
+    "#1a1944": eyes
+    "#aabcdb": eyes
+    "#fff1ff": eyes
+    "#4946f2": [[eyes, 0, 16], [pants, 17, 31]]
+    "#5b084e": top
+    "#611b3e": top
+    "#d361a7": top
+    "#9d227a": top
+    "#070a47": pants
+    "#191f70": pants
+    "#2e4d91": pants
+    "#530027": shoes
+    "#820040": shoes
+    "#6b2f00": accent
+    "#a14a00": accent
+    "#e8bf06": accent
+
+Evelyn:
+  fit: {upper: "older woman, hair in a bun", lower: "dress to below the knee, shoes"}
+  colors:
+    "#827070": hair
+    "#674555": hair
+    "#c3b0b0": hair
+    "#fcfcfc": hair
+    "#64031e": outline
+    "#713249": outline
+    "#fcd1b8": skin
+    "#fa837f": skin
+    "#b86865": skin
+    "#621a05": eyes
+    "#d50a3f": dress
+    "#9b062e": dress
+    "#f75c39": dress
+    "#922401": dress
+    "#361320": shoes
+
+Jas:
+  fit: {upper: "small girl, pigtails with a bow", lower: "short dress"}
+  colors:
+    "#602c8e": [[hair, 0, 17], [dress, 18, 31]]
+    "#330c49": hair
+    "#0b0419": outline
+    "#a53a41": outline
+    "#ffd5c2": skin
+    "#ef8869": skin
+    "#a46fe2": dress
+    "#e4b6ff": dress
+    "#8f71c6": [[eyes, 0, 17], [dress, 18, 31]]
+    "#b2e5f9": eyes
+    "#3c4e77": eyes
+    "#edf4fa": eyes
+    "#0d5454": bow
+    "#378f28": bow
+    "#6dc446": bow
+    "#d8ff77": bow

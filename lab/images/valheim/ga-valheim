@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""ga-valheim: the Valheim (BepInEx 5) sandbox tool inside the GameAnything Valheim image (lab/images/valheim). Stdlib only.
+
+The image has NO game files. The user's own Valheim folder (the Linux build: valheim.x86_64, valheim_Data/) is mounted READ-ONLY at
+/game, or downloaded with Steam in the sandbox (GA_GAME=<the Steam library's common/Valheim>). The game calls SteamAPI: Steam must
+be running in the sandbox (ga-steam start, logged in once).
+
+    ga-valheim doctor | layer [--force] | up | run | shot FILE | rec start|stop | log [-n N] | stop | down
+      layer        /sandbox/game: valheim_Data/ (and the other big folders) linked into /game, the small files copied, the user's own
+                   BepInEx, doorstop and plugins left out, the image's pinned BepInEx 5.4.23.5 unpacked (run_bepinex.sh)
+      run          valheim.x86_64 through run_bepinex.sh (-force-glcore: OpenGL, windowed 1280x720), wait for "Chainloader startup complete"
+
+Plugins: gameanything native build --game valheim --install <plugin> (GAMEANYTHING_VALHEIM_DIR=/sandbox/game) -> BepInEx/plugins/.
+Worlds and characters live in ~/.config/unity3d/IronGate/Valheim (the sandbox's home), never in the user's folder.
+Test characters and worlds must be LOCAL. Valheim 1.0 creates every new one as a Cloud save (no tick to untick, seen 2026-10-31): right
+after creating it, Manage saves > select it > Move to local, before playing it; a `_backup_auto` copy left in the Cloud: expand the row,
+select it, Remove. A Cloud save goes to Steam's
+userdata/<id>/892970/remote and Steam syncs it to the user's real account (sandbox-hiccups.md #46): `run`, `stop` and `doctor` name
+every Cloud save of the sandbox's Steam that is newer than the game's start.
+"""
+import os
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, "/usr/local/lib/gameanything")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))      # running from a checkout
+import galab  # noqa: E402
+from galab import GAME, LAYER, copy_entries  # noqa: E402
+
+EXE = "valheim.x86_64"
+LINKED = ("valheim_Data",)
+SKIPPED = ("BepInEx", "doorstop_libs", "doorstop_config.ini", "libdoorstop.so", "libdoorstop_x64.so", "run_bepinex.sh",
+           "start_game_bepinex.sh", "start_server_bepinex.sh", "unstripped_corlib", "winhttp.dll", ".doorstop_version", "steamapps")
+APPID = "892970"
+
+
+def cloud_saves(home: Path = None, since: float = 0) -> list:
+    """Valheim's Steam Cloud saves (characters / worlds in Steam's userdata/<id>/892970/remote) of the sandbox's Steam, changed after
+    `since`: what would sync to the user's real Steam account. Local saves (characters_local / worlds_local) are not listed."""
+    home = Path(home or os.environ.get("HOME", "/home/player")); found = set()
+    for root in (home / ".steam", home / ".local" / "share" / "Steam"):
+        for d in root.glob(f"**/userdata/*/{APPID}/remote"):
+            for f in d.rglob("*"):
+                try:
+                    if f.is_file() and f.stat().st_mtime >= since: found.add(f.resolve())
+                except OSError: pass
+    return sorted(str(f) for f in found)
+
+
+def unity_build(d: Path, exe: str) -> str:
+    stem = exe.rsplit(".", 1)[0]
+    if (d / exe).exists() and (d / f"{stem}_Data" / "Managed").is_dir(): return "linux"
+    if (d / f"{stem}.exe").exists(): return "windows"
+    if any(d.glob("*.app")): return "mac"
+    return "none"
+
+
+class Valheim(galab.Lab):
+    name, title, window = "ga-valheim", "Valheim", "^Valheim$"
+    mount_hint = "mount your Valheim folder (the one with valheim.x86_64 and valheim_Data/): -v <folder>:/game:ro"
+
+    def game_build(self): return unity_build(GAME, EXE)
+
+    def build_hints(self):
+        return {"windows": "this is the Windows build; the sandbox runs the Linux build (download it in the sandbox with Steam, or use native mode)",
+                "mac": "this is the Mac build; the sandbox runs the Linux build (download it in the sandbox with Steam, or use native mode)"}
+
+    def make_layer(self):
+        copied, linked = copy_entries(GAME, LAYER, link=LINKED, skip=lambda n: n in SKIPPED)
+        return {"copied": copied, "linked": linked, "bepinex": galab.bepinex_install(LAYER, EXE)}
+
+    def layer_ok(self): return (LAYER / ".ga-layer.json").is_file() and (LAYER / "run_bepinex.sh").is_file()
+    def log_file(self): return LAYER / "BepInEx" / "LogOutput.log"
+
+    def game_argv(self):
+        w, h = galab.size()
+        return ["sh", str(LAYER / "run_bepinex.sh"), str(LAYER / EXE), "-force-glcore", "-screen-fullscreen", "0",
+                "-screen-width", str(w), "-screen-height", str(h), "-console"]
+
+    def game_env(self): return {"SteamAppId": APPID, "SteamGameId": APPID, "PULSE_SINK": "rec"}
+    def ready(self, text): return "Chainloader startup complete" in text
+    def interesting(self, l): return any(k in l for k in ("M2W", "Loading [", "Error", "Chainloader"))
+    def doctor_extra(self): return {"steam_running": galab.steam_running(), "cloud_saves_since_start": cloud_saves(since=self.started_at())}
+
+    def started_at(self) -> float:
+        p = galab.RUN / "game.started"
+        try: return float(p.read_text())
+        except (OSError, ValueError): return time.time()
+
+    def warn_cloud(self):
+        new = cloud_saves(since=self.started_at())
+        if new:
+            self.say("WARNING: Steam Cloud saves written since the game started (they sync to the user's real Steam account; make test "
+                     "characters / worlds Local: Manage saves > select it > Move to local; a _backup_auto copy: expand the row, Remove; else "
+                     "say so in the end note):")
+            for f in new: print("  " + f)
+        return new
+
+    def cmd_run(self, a):
+        if not galab.steam_running(): self.say(f"Steam is not running in this sandbox: {self.title} needs it (ga-steam start, log in once)")
+        if not self.pid_alive("game"):
+            galab.RUN.mkdir(parents=True, exist_ok=True); (galab.RUN / "game.started").write_text(str(time.time()))
+        self.say("test characters and worlds: new ones are Cloud saves; right after creating one, Manage saves > Move to local")
+        return super().cmd_run(a)
+
+    def cmd_stop(self, a):
+        self.warn_cloud()
+        return super().cmd_stop(a)
+
+
+if __name__ == "__main__":
+    sys.exit(Valheim().main(__doc__))

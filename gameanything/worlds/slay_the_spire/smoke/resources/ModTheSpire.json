@@ -1,0 +1,1 @@
+{"modid": "m2wsmoke", "name": "M2W smoke test", "author_list": ["GameAnything"], "description": "Start each run with 999 gold (proves build -> install -> load).", "version": "0.1.0", "sts_version": "", "mts_version": "3.6.0", "dependencies": ["basemod"]}

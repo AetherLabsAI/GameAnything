@@ -1,0 +1,4 @@
+[2026-10-29 11:36:19] [ Initial ] Begin
+[2026-10-29 11:36:20] [ WaitingForCredentials ] Showing login window
+[2026-10-29 11:37:31] [ WaitingForCredentials ] Received logon failure response
+[2026-10-29 11:38:41] [ WaitingForCredentials ] Received logon failure response

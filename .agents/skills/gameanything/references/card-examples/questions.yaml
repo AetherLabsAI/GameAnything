@@ -1,0 +1,12 @@
+kind: questions
+title: 看完了，有 3 个问题想问你
+items:
+  - n: 1
+    text: 这一天对你们来说最重要的三个瞬间是什么？
+    hint: 我的推测是：两人的致辞、交换戒指、和朋友们的合影
+    image: /media/1_ingest/derived/thumbs/photo_1.jpg
+  - n: 2
+    text: 第一排右边那两位长辈是谁？游戏里怎么称呼他们？
+    image: /media/1_ingest/derived/thumbs/photo_2.jpg
+  - n: 3
+    text: 有没有素材里没有、但一定要保留的东西？

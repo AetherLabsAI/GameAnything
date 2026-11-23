@@ -1,0 +1,4 @@
+displayName = M2W Smoke
+author = GameAnything
+version = 0.1
+side = Client

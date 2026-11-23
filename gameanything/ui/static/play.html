@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GameAnything · 试玩检查</title>
+<style>
+:root { --bg:#f6f5f2; --panel:#fff; --ink:#222; --muted:#777; --line:#e3e0da; --accent:#3b6fd6; --ok:#2e9d5b; --warn:#d88a1c; --bad:#c94a3a; }
+* { box-sizing:border-box; }
+body { margin:0; font:14px/1.5 -apple-system, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; color:var(--ink); background:var(--bg); }
+header { display:flex; align-items:center; gap:12px; padding:8px 14px; background:var(--panel); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+header h1 { font-size:16px; margin:0; } header a { color:var(--accent); text-decoration:none; } .sp { flex:1; }
+.hint { color:var(--muted); font-size:12px; }
+button, select, input, textarea { font:inherit; }
+button { border:1px solid var(--line); background:#fff; border-radius:6px; padding:3px 10px; cursor:pointer; } button:hover { border-color:var(--accent); }
+button.on-ok { background:var(--ok); color:#fff; border-color:var(--ok); } button.on-change { background:var(--warn); color:#fff; border-color:var(--warn); }
+button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+main { max-width:1280px; margin:0 auto; padding:12px; }
+section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:12px; }
+h2 { font-size:15px; margin:0 0 8px; }
+.watch { display:grid; grid-template-columns: 1fr 280px; gap:12px; }
+video { width:100%; border-radius:6px; background:#000; }
+.chap { display:flex; align-items:center; gap:8px; padding:5px 7px; border-radius:6px; cursor:pointer; }
+.chap:hover, .chap.cur { background:#eef2fb; } .chap .t { color:var(--muted); font-size:12px; width:44px; }
+.dot { width:9px; height:9px; border-radius:50%; background:#ccc; flex:none; } .dot.ok { background:var(--ok); } .dot.change { background:var(--warn); }
+.moment { border-top:1px solid var(--line); padding:10px 0; } .moment:first-of-type { border-top:0; }
+.mhead { display:flex; align-items:center; gap:8px; margin-bottom:6px; } .mhead b { font-size:14px; }
+.pair { display:flex; gap:10px; flex-wrap:wrap; }
+.pair figure { margin:0; } .pair figcaption { font-size:12px; color:var(--muted); }
+.pair img { height:170px; border-radius:6px; display:block; }
+.shot { position:relative; display:inline-block; } .shot .ov { position:absolute; inset:0; cursor:crosshair; } .shot .bx { position:absolute; border:2px solid var(--bad); }
+textarea { width:100%; border:1px solid var(--line); border-radius:6px; padding:4px 7px; min-height:36px; font-size:13px; }
+table { width:100%; border-collapse:collapse; font-size:13px; } td, th { border-top:1px solid var(--line); padding:5px 6px; text-align:left; vertical-align:top; }
+.v { font-size:12px; padding:0 7px; border-radius:9px; white-space:nowrap; } .v.ok { background:#e3f4ea; color:var(--ok); } .v.partial { background:#fdf0dc; color:var(--warn); }
+.v.no { background:#f9e1dd; color:var(--bad); } .v.unknown { background:#eee; color:#666; }
+.note { color:#555; } .mine { font-size:12px; color:var(--accent); }
+ul.my { margin:6px 0; padding-left:18px; } ul.my li { margin:2px 0; }
+#toast { position:fixed; right:16px; bottom:16px; background:#333; color:#fff; padding:6px 12px; border-radius:6px; display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>试玩检查</h1><a href="/">首页</a><a href="/people">人物标记</a><a href="/looks">形象确认</a>
+  <span class="sp"></span><span class="hint">哪一期：</span><select id="ms"></select>
+</header>
+<main>
+  <section>
+    <h2>1. 看录像 <span class="hint">（独立回放：干净的游戏 + 真实键鼠操作；点右边的章节跳过去）</span></h2>
+    <div class="watch">
+      <div><video id="vid" controls preload="metadata"></video>
+        <div style="display:flex;gap:8px;margin-top:6px;align-items:flex-start">
+          <textarea id="tnote" placeholder="在这一刻留言：比如“这里的草太绿”、“这句话不对”"></textarea>
+          <button id="tbtn" class="primary" style="white-space:nowrap">在这一刻留言</button></div>
+        <div class="hint">会记下录像的时间点和这一帧画面。</div></div>
+      <div id="chapters"></div>
+    </div>
+  </section>
+  <section><h2>2. 每个时刻 <span class="hint">（左边是真实照片，右边是游戏画面；在游戏画面上拖动可以框出有问题的地方）</span></h2><div id="moments"></div></section>
+  <section><h2>3. 逐项核对 <span class="hint">（GameAnything 的检查结论；你觉得不对可以改判）</span></h2><table id="checks"></table></section>
+  <section><h2>4. 试听 <span class="hint">（开发 agent 和 GameAnything 都听不到声音，只有你能判断）</span></h2><div id="sounds"></div></section>
+  <section><h2>5. 自己玩</h2><div id="install"></div></section>
+  <section><h2>6. 我的意见</h2><div id="mine"></div>
+    <div style="margin-top:8px"><button id="nextbtn" class="primary">按这些意见改（开始下一轮）…</button> <span class="hint" id="nexthint"></span></div></section>
+</main>
+<div id="toast"></div>
+<script>
+let S = null; const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const VL = {ok: "做到了", partial: "部分做到", no: "没做到", unknown: "没法确认"};
+const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+function toast(t) { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(e._t); e._t = setTimeout(() => e.style.display = "none", 1800); }
+async function load(m) {
+  S = await (await fetch("/api/play" + (m ? "?m=" + m : ""))).json();
+  $("ms").innerHTML = S.milestones.map(x => `<option ${x === S.m ? "selected" : ""}>${x}</option>`).join("");
+  const P = S.play; $("vid").src = P.video ? S.base + P.video : ""; render();
+}
+$("ms").onchange = () => load($("ms").value);
+async function post(url, body) { const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({m: S.m, ...body})}); const j = await r.json(); if (j.review) S.review = j.review; if (j.next_round) S.next_round = j.next_round; return j; }
+function render() {
+  const P = S.play, R = S.review;
+  $("chapters").innerHTML = P.chapters.map(c => `<div class="chap" data-t="${c.t}"><span class="dot ${(R.moments[c.moment] || {}).status || ""}"></span><span class="t">${fmt(c.t)}</span>${esc(c.title)}</div>`).join("") || `<div class="hint">没有章节</div>`;
+  document.querySelectorAll(".chap").forEach(e => e.onclick = () => { $("vid").currentTime = +e.dataset.t; $("vid").play(); });
+  $("moments").innerHTML = P.chapters.map(c => {
+    const mine = R.moments[c.moment] || {}, refs = (P.references[c.moment] || []), sc = P.scenes.filter(x => x.moment === c.moment);
+    return `<div class="moment" data-m="${c.moment}"><div class="mhead"><b>${esc(c.title)}</b><a href="#" data-seek="${c.t}" class="hint">录像 ${fmt(c.t)} ▶</a><span class="sp"></span>
+        <button data-st="ok" class="${mine.status === "ok" ? "on-ok" : ""}">满意</button><button data-st="change" class="${mine.status === "change" ? "on-change" : ""}">要改</button></div>
+      <div class="pair">${refs.map(r => `<figure><img src="/media/1_ingest/derived/images/${r}.jpg"><figcaption>真实：${r}</figcaption></figure>`).join("")}
+        ${sc.map(x => `<figure><div class="shot"><img src="${S.base + x.file}"><div class="ov" data-img="${x.file}"></div></div><figcaption title="${esc(x.what)}">游戏画面${x.file.includes("groom_speech") ? "（注意：这张交付截图拍错了）" : ""}</figcaption></figure>`).join("") || `<span class="hint">这个时刻没有交付截图，请看录像</span>`}</div>
+      <textarea data-note placeholder="对这个时刻的意见">${esc(mine.note || "")}</textarea></div>`; }).join("");
+  document.querySelectorAll("[data-seek]").forEach(a => a.onclick = e => { e.preventDefault(); $("vid").currentTime = +a.dataset.seek; $("vid").scrollIntoView({behavior: "smooth"}); });
+  document.querySelectorAll(".moment").forEach(el => {
+    const m = el.dataset.m, note = () => el.querySelector("[data-note]").value;
+    el.querySelectorAll("[data-st]").forEach(b => b.onclick = async () => { await post("/api/play_feedback", {kind: "moment", moment: m, status: b.dataset.st, note: note()}); toast("已记下"); render(); });
+    el.querySelector("[data-note]").onchange = async () => { await post("/api/play_feedback", {kind: "moment", moment: m, status: (S.review.moments[m] || {}).status || "change", note: note()}); toast("已记下"); render(); };
+    el.querySelectorAll(".ov").forEach(ov => boxer(ov, m));
+  });
+  $("checks").innerHTML = `<tr><th>项目</th><th>GameAnything 结论</th><th>说明</th><th>你的判断</th></tr>` + P.checks.map(c => {
+    const mine = R.checks[c.id] || {};
+    return `<tr><td>${esc(c.item)}</td><td><span class="v ${c.verdict}">${VL[c.verdict] || c.verdict}</span></td><td class="note">${esc(c.note)}</td>
+      <td><select data-ck="${c.id}"><option value="">同意</option>${Object.entries(VL).map(([k, v]) => `<option value="${k}" ${mine.verdict === k ? "selected" : ""}>改成：${v}</option>`).join("")}</select>
+      <input data-cn="${c.id}" placeholder="为什么" value="${esc(mine.note || "")}" style="width:100%;margin-top:3px;border:1px solid var(--line);border-radius:5px;padding:2px 6px"></td></tr>`; }).join("");
+  document.querySelectorAll("[data-ck],[data-cn]").forEach(e => e.onchange = async () => { const id = e.dataset.ck || e.dataset.cn;
+    await post("/api/play_feedback", {kind: "check", id, verdict: document.querySelector(`[data-ck="${id}"]`).value, note: document.querySelector(`[data-cn="${id}"]`).value}); toast("已记下"); });
+  $("sounds").innerHTML = (P.sounds || []).map((x, i) => { const mine = R.sounds[x.file] || {};
+    return `<div style="display:flex;gap:10px;align-items:center;margin:4px 0;flex-wrap:wrap"><audio controls src="${S.base + x.file}"></audio><div style="flex:1;min-width:240px"><b>${esc(x.used_for)}</b><div class="hint">${esc(x.note || "")}</div></div>
+      <button data-snd="${x.file}" data-v="ok" class="${mine.status === "ok" ? "on-ok" : ""}">没问题</button><button data-snd="${x.file}" data-v="change" class="${mine.status === "change" ? "on-change" : ""}">听着不对</button></div>`; }).join("")
+    + `<div class="hint">游戏自带的音效在录像里能听到；有问题就在"看录像"里那一刻留言。</div>`;
+  document.querySelectorAll("[data-snd]").forEach(b => b.onclick = async () => { const note = b.dataset.v === "change" ? (prompt("哪里不对？（比如：像猪叫）") || "") : "";
+    await post("/api/play_feedback", {kind: "sound", id: b.dataset.snd, status: b.dataset.v, note}); toast("已记下"); render(); });
+  $("install").innerHTML = P.install ? `<p><a href="${S.base + P.install}" download>下载这一期的 mod（zip）</a></p>
+    <ol class="hint" style="color:#444"><li>先备份存档（Windows：%AppData%\\StardewValley\\Saves；Mac/Linux：~/.config/StardewValley/Saves）。</li>
+    <li>装好 SMAPI，把 zip 解压到游戏的 Mods 文件夹，用 SMAPI 启动；新开一个存档，把角色捏成你自己的样子。</li>
+    <li>要卸载时：先在 SMAPI 控制台运行 mod 说明里的卸载准备命令，再删掉 Mods 里的文件夹。</li></ol>
+    <p class="hint">在这台服务器上直接用浏览器玩：下一版加上（会开一个只在本机的游戏窗口）。</p>` : `<span class="hint">这一期还没有可安装的包</span>`;
+  const items = [];
+  Object.entries(R.moments).forEach(([m, e]) => e.status === "change" && items.push({kind: "moment", what: S.moment_titles[m] || m, note: e.note}));
+  Object.entries(R.checks).forEach(([id, e]) => e.verdict && items.push({kind: "check", what: (P.checks.find(c => c.id === id) || {}).item || id, note: `改判为"${VL[e.verdict]}"` + (e.note ? "：" + e.note : "")}));
+  Object.entries(R.sounds).forEach(([f, e]) => e.status === "change" && items.push({kind: "sound", what: "声音 " + f.split("/").pop(), note: e.note}));
+  R.notes.forEach(n => items.push({kind: n.kind, what: n.kind === "time" ? `录像 ${fmt(n.t || 0)}` : "截图上框出的地方", note: n.note, frame: n.frame}));
+  S._items = items;
+  $("mine").innerHTML = items.length ? `<ul class="my">${items.map(x => `<li><b>${esc(x.what)}</b>：${esc(x.note || "（没写说明）")}${x.frame ? ` <span class="hint">[附画面]</span>` : ""}</li>`).join("")}</ul>` : `<span class="hint">还没有意见。看完觉得都满意，就不用点下面的按钮。</span>`;
+  const nr = S.next_round; $("nexthint").textContent = nr ? `已提交（${nr.at}，${nr.items.length} 条，状态：${nr.state === "pending" ? "等 GameAnything 开始" : nr.state}）` : "";
+}
+$("tbtn").onclick = async () => {
+  const v = $("vid"), note = $("tnote").value.trim(); if (!note) { toast("先写下意见"); return; }
+  let frame = null; try { const c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext("2d").drawImage(v, 0, 0); frame = c.toDataURL("image/png"); } catch (e) {}
+  await post("/api/play_feedback", {kind: "time", t: +v.currentTime.toFixed(1), note, frame}); $("tnote").value = ""; toast("已记下（" + fmt(v.currentTime) + "）"); render();
+};
+function boxer(ov, moment) {
+  let st = null, el = null;
+  ov.onmousedown = e => { const r = ov.getBoundingClientRect(); st = {r, x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height}; el = document.createElement("div"); el.className = "bx"; ov.appendChild(el); };
+  ov.onmousemove = e => { if (!st) return; const x = (e.clientX - st.r.left) / st.r.width, y = (e.clientY - st.r.top) / st.r.height;
+    Object.assign(el.style, {left: Math.min(x, st.x) * 100 + "%", top: Math.min(y, st.y) * 100 + "%", width: Math.abs(x - st.x) * 100 + "%", height: Math.abs(y - st.y) * 100 + "%"}); };
+  ov.onmouseup = async e => { if (!st) return; const x = (e.clientX - st.r.left) / st.r.width, y = (e.clientY - st.r.top) / st.r.height;
+    const box = [Math.min(x, st.x), Math.min(y, st.y), Math.max(x, st.x), Math.max(y, st.y)].map(v => +v.toFixed(3)); st = null;
+    if (box[2] - box[0] < 0.02) { el.remove(); return; }
+    const note = prompt("框出来的地方有什么问题？"); if (!note) { el.remove(); return; }
+    await post("/api/play_feedback", {kind: "box", moment, box, note, t: null, frame: null, id: ov.dataset.img}); toast("已记下"); render(); };
+}
+$("nextbtn").onclick = async () => {
+  const items = S._items || []; if (!items.length) { toast("还没有意见"); return; }
+  if (!confirm(`把这 ${items.length} 条意见交给 GameAnything，写成下一轮的修改要求？\n\n` + items.map(x => "· " + x.what + "：" + (x.note || "")).join("\n") + `\n\n下一轮会在这一期的基础上修改，预计几个小时（按第 1 期的经验，一轮约 5 小时、约 40 美元）。GameAnything 开始前会先告诉你。`)) return;
+  await post("/api/next_round", {items}); toast("已提交"); render();
+};
+load(new URLSearchParams(location.search).get("m"));
+</script>
+</body>
+</html>

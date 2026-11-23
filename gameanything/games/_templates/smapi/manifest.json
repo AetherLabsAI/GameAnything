@@ -1,0 +1,8 @@
+{
+  "Name": "{{Name}}",
+  "Author": "GameAnything",
+  "Version": "1.0.0",
+  "Description": "GameAnything smoke mod for {{title}}: logs on load and shows a HUD message.",
+  "UniqueID": "memory2world.{{id}}.smoke",
+  "EntryDll": "{{Name}}.dll"
+}

@@ -1,0 +1,65 @@
+# Kerbal Space Program (KSP 1): a gameanything game package. How to fill it: skills/gameanything/references/add-a-game.md
+# KSP loads plugins itself: every DLL under GameData/ (by convention GameData/<Mod>/Plugins/<Mod>.dll) whose MonoBehaviours carry
+# [KSPAddon(...)] is started by the game's AddonLoader. No separate mod loader (ModuleManager is an optional mod, not needed here).
+# Saves, settings and KSP.log live in the game folder itself (not in a user folder), on every system.
+# Paths: one string, a list of candidates (the first that exists wins), or a per-system map {windows, mac, linux}; placeholders:
+# {home} {documents} {appdata} {localappdata} {xdg_data} {xdg_config} {game} (the install) {user} (folders.user) {mods}
+id: ksp
+title: Kerbal Space Program
+title_zh: 坎巴拉太空计划
+order: 90
+steam_appid: 220200               # also sold DRM-free (the game runs without Steam): $GAMEANYTHING_KSP_DIR points m2w at such a copy
+engine: unity-mono (Unity 2019.4, .NET 4.x)
+adapter: adapter:Ksp              # build (net472 DLL against the game's Managed/), GameData install rules, check_mod
+pin_var: GAMEANYTHING_KSP_DIR              # the game folder (the one with GameData/ and saves/)
+loader:
+  name: built-in (KSP AddonLoader, GameData/<Mod>/Plugins)
+  type: builtin
+  url: https://store.steampowered.com/app/220200/Kerbal_Space_Program/
+  fix: 坎巴拉太空计划自己加载插件，不用另装加载器；如果找不到 GameData/Squad，就在 Steam 里验证一下游戏文件
+  fix_en: KSP loads plugins itself, there is no loader to install; if GameData/Squad is missing, verify the game files in Steam
+  check: ["{game}/GameData/Squad"]
+folders:
+  game: {marker: GameData/Squad, steam_appid: 220200}
+  user: "{game}"                  # KSP keeps saves/, settings.cfg and KSP.log next to the game (Windows, macOS and Linux alike)
+  mods: "{game}/GameData"         # install puts <Mod>/ here; the game's own Squad/ and SquadExpansion/ are never touched
+saves: ["{game}/saves"]           # saves/<profile>/ (persistent.sfs, quicksave.sfs, Ships/), plus the game's scenarios/ and training/
+extra_files: ["{game}/settings.cfg"]   # the game rewrites it (window size, keys); backed up and restored with the saves
+logs:
+  - "{game}/KSP.log"              # Debug.Log of the game and every plugin: "[LOG hh:mm:ss.mmm]: [M2W-smoke] loaded"; KSP flushes it in batches
+                                  # (lines can lag minutes behind); Unity's Player.log below has them at once
+  - linux: "{xdg_config}/unity3d/Squad/Kerbal Space Program/Player.log"
+    windows: "{home}/AppData/LocalLow/Squad/Kerbal Space Program/Player.log"
+    mac: "{home}/Library/Logs/Squad/KSP/Player.log"   # macOS 2026-10-29: the folder is Squad/KSP (the product name), not "Kerbal Space Program";
+                                  # never Unity/Player.log: every Unity game shares it, so `log` showed another game's lines when KSP had not written yet
+process_names: {linux: [KSP.x86_64], windows: [KSP_x64.exe], mac: [KSP]}
+window_titles: [Kerbal Space Program]
+launch:
+  url: steam://rungameid/220200
+  hint: >-
+    Start the game itself (KSP_x64.exe / KSP.x86_64 / KSP.app); if Steam shows a launcher first, press its Play / Launch button.
+    KSP 1 has no online play; test in a throwaway save profile (Start Game > New Game, a name like m2w-test), never in her career save.
+toolchain: {kind: dotnet, major: 6, purpose: "the plugin DLL (net472 against the game's own KSP_Data/Managed assemblies, offline)"}
+smoke: smoke/M2WSmoke
+lab:
+  supported: true                 # gamebench KSP lab (2026-10-28): agent/modlab/ksp/kslab_rt.py on a seat of the shared lab sandbox mclab-hlm-m1
+                                  # (pool game `ksp`, GPU); entry hosting/launch_rt/ksp.sh, builder guide hosting/modlab/ksp/rt/CLAUDE.md
+window:
+  how: 游戏里 设置 > 图形 关掉「全屏」，分辨率选 1280x720（游戏写进 settings.cfg，会记住）；或者 Steam 启动选项加 -screen-fullscreen 0 -screen-width 1280 -screen-height 720
+reload:
+  none: >-
+    坎巴拉太空计划不能热重载插件：游戏只在启动时加载 GameData 里的 DLL，之后换掉 DLL 不会生效（没有官方的重新加载）。
+    改了插件要关掉游戏、install 新的、再开一次（开到主菜单大约一两分钟）。把这一轮的改动攒在一起，开一次测完
+desc: 经典的太空模拟，造火箭、飞向月球和行星，适合回忆和功能项目：零件、任务和小剧情的插件（游戏自己加载的 C# 插件）；在服务器沙箱里构建、截图和录试玩视频都能做，也能装进你自己的游戏；只在单独的测试存档里测
+desc_en: >-
+  The classic space-flight sandbox: build rockets and fly to moons and planets, made for memory and feature projects: plugins with
+  parts, missions and small stories (C# plugins the game loads itself); builds, screenshots and playthrough clips in the server
+  sandbox, and installing into your own game, work; tests only in a separate test save
+tests: [tests/games/test_ksp.py]
+verified:                         # real round trips: docs/cross-platform.md (Linux)
+- {system: linux, date: '2026-10-25', result: pass, how: "KSP 1.12.5 Linux in a lab sandbox as a player's PC, GPU via VirtualGL; build, check, backup, install, gated launch, log + banner, close, restore byte-identical, uninstall"}
+- {system: mac, date: '2026-10-29', result: pass, how: "macOS 14.6 Apple Silicon (docs/cross-platform.md): MacHello (KSP 1.12.5 under Rosetta, games on a USB Steam library): build, check, install, launch, the main-menu panel, close, uninstall"}
+- {system: windows, date: '2026-11-01', result: pass, how: "a real Windows 11 PC (x64, Steam, OneDrive Documents): doctor, build, check, backup, install, Steam launch, '[M2W-smoke] loaded' in KSP.log, close, uninstall"}
+sandbox:                          # the user's own Docker sandbox (gameanything/sandbox.py): the sandbox runs the Linux build: mount a Linux install, else download it with Steam
+  build: linux
+  three_d: true

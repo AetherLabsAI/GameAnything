@@ -1,0 +1,61 @@
+# Valheim: a built-in game package (gameanything/games/README.md). The code adapter is Valheim in native/games.py;
+# the folders below document what it finds (the adapter is the source for them), the rest is read by the registry.
+id: valheim
+order: 70
+title: Valheim
+title_zh: 英灵神殿
+steam_appid: 892970
+engine: unity-mono (Unity 6)
+adapter: gameanything.native.games:Valheim
+pin_var: GAMEANYTHING_VALHEIM_DIR
+loader:
+  name: BepInExPack_Valheim (BepInEx 5)
+  type: bepinex
+  url: https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/
+folders:
+  game:
+    marker: valheim_Data/Managed/assembly_valheim.dll
+  user:
+    windows: '{home}/AppData/LocalLow/IronGate/Valheim'
+    mac: '{home}/Library/Application Support/IronGate/Valheim'
+    linux: '{xdg_config}/unity3d/IronGate/Valheim'
+  mods: '{game}/BepInEx/plugins'
+saves:
+- '{user}'
+logs:
+- '{game}/BepInEx/LogOutput.log'
+- Player.log (Unity)
+process_names:
+  mac:
+  - valheim
+  - Valheim
+  linux:
+  - valheim.x86_64
+  windows:
+  - valheim.exe
+window_titles:
+- Valheim
+launch:
+  url: steam://rungameid/892970
+toolchain:
+  kind: dotnet
+  major: 6
+  purpose: the BepInEx plugin DLL (net462)
+smoke: ../../worlds/valheim/smoke
+lab:
+  supported: true
+  steam: true
+tests:
+- tests/test_native_valheim.py
+desc: 北欧神话里的开放世界生存和建造，适合回忆和功能项目：建筑、物品、地标和小剧情的 mod（BepInEx 插件），构建和装进你自己的游戏可以做；只在本地世界里测试，试玩录像还没接入
+desc_en: 'Open-world survival and building in Norse myth, made for memory and feature projects: mods with buildings, items, landmarks and small stories (BepInEx plugins); builds and installing into your
+  own game work, tests only in a local world, playthrough videos are not connected yet'
+window:
+  how: Steam 启动选项在 %command% 后面加 -screen-fullscreen 0 -screen-width 1280 -screen-height 720（Unity 的参数）
+verified:                         # real round trips: docs/cross-platform.md ("Verified on real games")
+- {system: linux, date: '2026-10-25', result: pass}
+- {system: mac, date: '2026-10-25', result: pass}
+- {system: windows, date: '2026-11-01', result: pass, how: "a real Windows 11 PC (x64, Steam, OneDrive Documents): BepInExPack_Valheim 5.4.2351; doctor, build, check, backup, install, Steam launch, '[M2W-smoke] loaded' in LogOutput.log, close, uninstall"}
+sandbox:                          # the user's own Docker sandbox (gameanything/sandbox.py): the sandbox runs the Linux build: mount a Linux install, else download it with Steam
+  build: linux
+  three_d: true

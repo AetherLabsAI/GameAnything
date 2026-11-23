@@ -1,0 +1,38 @@
+[project]
+name = "gameanything"
+version = "0.0.1"
+description = "GameAnything: turn personal memories, novels and films into playable content inside games you love"
+requires-python = ">=3.10,<3.15"                 # <3.15: uv picks the newest Python, and pyyaml / opencc have no 3.15 Windows wheels yet (a C++ compiler then)
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = [
+    "pillow>=10",
+    "pillow-heif>=0.16",
+    "pyyaml>=6",
+    "pypdfium2>=4",
+    "numpy>=1.24",
+    "av>=12",
+    "jsonschema>=4",                                   # perceive's card checks (an extra until 2026-11-01)
+    "opencc>=1.1; sys_platform != 'win32' or platform_machine != 'ARM64'",   # traditional -> simplified Chinese for adaptation projects
+    "opencc-python-reimplemented>=0.1.7; sys_platform == 'win32' and platform_machine == 'ARM64'",   # same `opencc` module: OpenCC has no Windows ARM64 wheels
+]
+
+[project.optional-dependencies]
+transcribe = ["faster-whisper>=1.0"]
+detect = ["torch>=2.1", "torchvision>=0.16"]   # local person boxes for the tagging UI
+perceive = []                                  # jsonschema is a basic dependency now; kept so old install lines still work
+dev = ["playwright>=1.40"]                     # headless screenshots of the UI (contributors: CONTRIBUTING.md)
+
+[project.scripts]
+gameanything = "gameanything.cli:main"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["gameanything*"]
+
+[tool.setuptools.package-data]
+gameanything = ["*.yaml", "ui/static/*", "ui/static/fonts/*", "ui/static/examples/*", "worlds/stardew/art/*.yaml", "worlds/common/*.md", "worlds/cities_skylines/template/*", "worlds/cities_skylines/template/Source/*", "worlds/cities_skylines/smoke/*", "worlds/cities_skylines/smoke/Source/*", "native/s4_types.json", "worlds/sims4/template/scripts/*/*", "worlds/sims4/template/package/*", "worlds/sims4/template/package/tuning/*", "worlds/sims4/smoke/scripts/*/*", "worlds/slay_the_spire/smoke/resources/*", "worlds/slay_the_spire/smoke/src/*/*", "worlds/overcooked2/smoke/*", "worlds/valheim/smoke/*", "games/*/game.yaml", "games/*/LESSONS.md", "games/*/smoke/*", "games/*/smoke/**/*", "games/_templates/*", "games/_templates/**/*"]

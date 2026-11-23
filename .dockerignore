@@ -1,0 +1,16 @@
+# docker build context for lab/images/*/Dockerfile (run from the repository root): only what the image installs
+*
+!gameanything/
+!skills/gameanything/
+!AGENTS.md
+!docs/lessons/games/
+!docs/sandbox-images.md
+!lab/images/
+!plugins/dsh-web-search-openai-compatible/
+!setup.py
+!pyproject.toml
+!MANIFEST.in
+!README.md
+!LICENSE
+**/__pycache__
+**/*.pyc

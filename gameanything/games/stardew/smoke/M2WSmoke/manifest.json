@@ -1,0 +1,8 @@
+{
+  "Name": "M2WSmoke",
+  "Author": "GameAnything",
+  "Version": "1.0.0",
+  "Description": "GameAnything smoke mod for Stardew Valley: logs on load and shows a HUD message.",
+  "UniqueID": "memory2world.stardew.smoke",
+  "EntryDll": "M2WSmoke.dll"
+}

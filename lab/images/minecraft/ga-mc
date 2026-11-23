@@ -1,0 +1,243 @@
+#!/opt/gameanything/venv/bin/python3
+"""ga-mc: the Minecraft: Java Edition sandbox tool inside the GameAnything Minecraft image (lab/images/minecraft).
+
+The image has NO game files. The user's own .minecraft (versions/ with a Fabric profile, libraries/, assets/, and the launcher's
+Java runtime/) is mounted READ-ONLY at /game. If their launcher keeps worlds apart (Prism / MultiMC instances, portablemc --work-dir),
+that game folder (saves/, mods/, config/, options.txt) is mounted read-only at /saves. Everything the sandbox writes goes to /sandbox:
+
+    /game        the user's .minecraft, read-only                         docker run -v ~/.minecraft:/game:ro
+    /saves       optional: the instance folder with saves/, read-only     -v <instance>/.minecraft:/saves:ro
+    /sandbox     writable: the game layer, logs, screenshots, recordings
+
+    ga-mc doctor [--json]     what is mounted, the Fabric profile, the Java runtime, the layer, the display
+    ga-mc layer [--force]     /sandbox/game = the sandbox's .minecraft: versions/, libraries/, the asset objects and runtime/ are links
+                              into /game; saves/, config/, options.txt, resourcepacks/ are copied; mods/ is fresh (only her Fabric API jar);
+                              launcher accounts and tokens are never copied
+    ga-mc run [--world NAME]  start the newest Fabric profile OFFLINE (no account: a local player name, singleplayer only) with the
+                              launcher's own arguments, straight into a world when --world is given (quick play)
+    ga-mc shot FILE | rec start|stop | log [-n N] | stop | down | worlds
+
+No .minecraft on this computer yet? Download the game files with the user's own Microsoft account (only to check that they own the game;
+playing stays offline). The sign-in is the device-code flow: the user opens https://www.microsoft.com/link on their own phone or computer
+and types the code shown here; nothing is typed into the sandbox. The refresh token stays in /sandbox/account (mode 0600), never printed.
+
+    ga-mc account login [--wait S]   show a code (and write it to /sandbox/account/LOGIN.json), wait for the sign-in, check ownership
+    ga-mc account status [--recheck] what is saved (no tokens); --recheck checks ownership again from the saved token, without a sign-in
+    ga-mc account logout             delete the saved token and result
+    ga-mc download [--version V] [--fabric L] [--fabric-api A]
+                                     the game (client, libraries, assets, Mojang's Java runtime), the Fabric loader profile and Fabric API
+                                     into /sandbox/minecraft, every file checked against its official sha1 / sha512; files already there
+                                     with the right hash are kept (a second run downloads nothing). Then: GA_GAME=/sandbox/minecraft
+
+Mods: `gameanything native build --game minecraft --install <mod folder>` (GAMEANYTHING_MINECRAFT_DIR=/sandbox/game is set in the image):
+javac against the profile's own jars (Minecraft 26.x is unobfuscated), the jar goes to /sandbox/game/mods/. Restart the game to load it.
+"""
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+import sys
+import urllib.request
+import uuid
+from pathlib import Path
+
+sys.path.insert(0, "/usr/local/lib/gameanything")
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent / "common")); sys.path.insert(1, str(HERE.parent.parent.parent))       # running from a checkout
+import galab  # noqa: E402
+from galab import GAME, LAYER, LOGS, SANDBOX, SAVES_IN  # noqa: E402
+from gameanything.native import mcdownload, mcversion, msauth  # noqa: E402
+
+ACCOUNT = SANDBOX / "account"
+DOWNLOAD = SANDBOX / "minecraft"           # the downloaded .minecraft (GA_GAME=/sandbox/minecraft uses it as /game)
+
+LINKED = ("versions", "libraries", "runtime", "jvm")
+ASSET_LINKED = ("indexes", "objects", "log_configs", "virtual")
+COPIED = ("saves", "config", "options.txt", "resourcepacks", "shaderpacks", "servers.dat")          # a whitelist: never launcher_accounts*.json
+OPTIONS = {"fullscreen": "false", "pauseOnLostFocus": "false", "onboardAccessibility": "false", "tutorialStep": "none",
+           "skipMultiplayerWarning": "true", "joinedFirstServer": "true", "narrator": "0"}
+PLAYER = "Player"
+EXTRA_LIBS = SANDBOX / "libraries-linux"      # the Linux native libraries a Windows / Mac .minecraft does not have (public downloads)
+
+
+def offline_uuid(name: str) -> str:
+    """The UUID an offline (no account) player gets: version 3 of 'OfflinePlayer:<name>', as the server computes it."""
+    return str(uuid.UUID(bytes=hashlib.md5(f"OfflinePlayer:{name}".encode()).digest(), version=3))
+
+
+def set_options(text: str, opts=OPTIONS) -> str:
+    lines = text.splitlines(); seen = set()
+    for i, l in enumerate(lines):
+        k = l.split(":", 1)[0]
+        if k in opts: lines[i] = f"{k}:{opts[k]}"; seen.add(k)
+    lines += [f"{k}:{v}" for k, v in opts.items() if k not in seen]
+    return "\n".join(lines) + "\n"
+
+
+def fetch_missing(root: Path, v, dest=EXTRA_LIBS, opener=urllib.request.urlopen) -> list:
+    """The libraries this Linux sandbox needs that her .minecraft lacks (a Windows or Mac launcher only downloads its own system's native
+    jars): fetched once from their public URL in the version file (no account), sha1-checked, into dest. -> the paths fetched."""
+    got = []
+    for lib in mcversion.libraries(v, "linux"):
+        rel = mcversion.lib_path(lib)
+        if (root / "libraries" / rel).is_file() or (dest / rel).is_file(): continue
+        url, sha1 = mcversion.lib_url(lib)
+        if not url: raise SystemExit(f"[ga-mc] {rel} is missing and has no download URL: start this version once in your launcher")
+        with opener(url, timeout=60) as r: data = r.read()
+        if sha1 and hashlib.sha1(data).hexdigest() != sha1: raise SystemExit(f"[ga-mc] {url}: sha1 does not match")
+        (dest / rel).parent.mkdir(parents=True, exist_ok=True); (dest / rel).write_bytes(data); got.append(rel)
+    return got
+
+
+def gamedir_src() -> Path:
+    """Where her worlds are: /saves when an instance folder is mounted there, else the .minecraft itself."""
+    return SAVES_IN if SAVES_IN.is_dir() and any(SAVES_IN.iterdir()) else GAME
+
+
+def find_java(root: Path, v) -> str:
+    comp = (v.get("javaVersion") or {}).get("component") or ""
+    for p in (root / "runtime" / comp / "linux" / comp / "bin" / "java", root / "runtime" / comp / "bin" / "java", root / "jvm" / comp / "bin" / "java"):
+        if comp and p.is_file(): return str(p)
+    j = shutil.which("java")
+    if j:
+        r = subprocess.run([j, "-version"], capture_output=True, text=True)
+        m = re.search(r'version "(\d+)', r.stderr + r.stdout)
+        if m and int(m.group(1)) >= mcversion.java_major(v): return j
+    raise SystemExit(f"[ga-mc] no Java {mcversion.java_major(v)} for this version: the launcher's runtime/{comp} is not in /game and the image's java is older")
+
+
+class Mc(galab.Lab):
+    name, title, window = "ga-mc", "Minecraft", r"^Minecraft\*? [0-9]"   # not its hidden "Minecraft - RenderPearl ..." helper window
+    mount_hint = "mount your .minecraft (with versions/, libraries/, assets/): -v ~/.minecraft:/game:ro"
+
+    def game_build(self):
+        if (GAME / "versions").is_dir() and (GAME / "libraries").is_dir(): return "java"
+        return "none"
+
+    def profile(self):
+        root = LAYER if (LAYER / "versions").exists() else GAME
+        vid = self.args_version or mcversion.newest_fabric(root)
+        if not vid: self.die(f"no Fabric profile in {root}/versions: install Fabric with its installer in your launcher first", 3)
+        return root, vid, mcversion.load(root, vid)
+
+    def make_layer(self):
+        LAYER.mkdir(parents=True, exist_ok=True)
+        linked = []
+        for n in LINKED:
+            if (GAME / n).exists(): (LAYER / n).symlink_to(GAME / n); linked.append(n)
+        a = LAYER / "assets"; a.mkdir()
+        for n in ASSET_LINKED:
+            if (GAME / "assets" / n).exists(): (a / n).symlink_to(GAME / "assets" / n)
+        (a / "skins").mkdir()
+        src = gamedir_src(); copied = []
+        for n in COPIED:
+            p = src / n
+            if p.is_dir(): shutil.copytree(p, LAYER / n, symlinks=True); copied.append(n)
+            elif p.is_file(): shutil.copy2(p, LAYER / n); copied.append(n)
+        (LAYER / "mods").mkdir()
+        api = sorted((src / "mods").glob("fabric-api-*.jar")) if (src / "mods").is_dir() else []
+        left = sorted(p.name for p in (src / "mods").iterdir() if p not in api[-1:]) if (src / "mods").is_dir() else []
+        if not api and src != GAME and (GAME / "mods").is_dir():     # worlds at /saves, Fabric API in the game folder (plain Docker test 10-29)
+            api = sorted((GAME / "mods").glob("fabric-api-*.jar"))
+        if api: shutil.copy2(api[-1], LAYER / "mods" / api[-1].name)
+        else: self.say(f"no Fabric API jar (fabric-api-*.jar) in {src / 'mods'} or {GAME / 'mods'}: mods that use it will not compile "
+                  "(\"package net.fabricmc.fabric.api... does not exist\"); install Fabric API in your launcher, or ga-mc download")
+        o = LAYER / "options.txt"; o.write_text(set_options(o.read_text(errors="replace") if o.exists() else ""))
+        root, vid, v = self.profile()
+        fetched = fetch_missing(root, v)
+        return {"linked": linked, "copied": copied, "worlds_from": str(src), "worlds": sorted(p.name for p in (LAYER / "saves").iterdir()) if (LAYER / "saves").is_dir() else [],
+                "mods": [p.name for p in (LAYER / "mods").iterdir()], "user_mods_left_out": left, "profile": vid, "linux_libraries_fetched": len(fetched), "java": find_java(LAYER, v)}
+
+    def layer_ok(self): return (LAYER / ".ga-layer.json").is_file() and (LAYER / "versions").exists()
+    def log_file(self): return LAYER / "logs" / "latest.log"
+
+    def game_argv(self):
+        root, vid, v = self.profile()
+        cp = mcversion.classpath(root, v, "linux", extra_roots=[EXTRA_LIBS])
+        miss = [p for p in cp if not p.is_file()]
+        if miss: self.die(f"{vid}: {len(miss)} files missing (start this version once in your launcher): {miss[0]}")
+        w, h = galab.size()
+        nat = SANDBOX / "natives"; nat.mkdir(parents=True, exist_ok=True)
+        vals = {"auth_player_name": PLAYER, "version_name": vid, "game_directory": str(LAYER), "assets_root": str(LAYER / "assets"),
+                "assets_index_name": (v.get("assetIndex") or {}).get("id") or v.get("assets", ""), "auth_uuid": offline_uuid(PLAYER).replace("-", ""),
+                "auth_access_token": "0", "clientid": "", "auth_xuid": "", "user_type": "legacy", "version_type": v.get("type", "release"),
+                "resolution_width": w, "resolution_height": h, "natives_directory": str(nat), "launcher_name": "gameanything",
+                "launcher_version": "1", "classpath": ":".join(map(str, cp)), "quickPlaySingleplayer": self.args_world or "", "quickPlayPath": ""}
+        feats = {"has_custom_resolution": True, "is_quick_play_singleplayer": bool(self.args_world)}
+        jvm, main, game = mcversion.arguments(v, vals, "linux", features=feats)
+        jvm = [a for a in jvm if not a.startswith(("-Xms", "-XX:+AlwaysPreTouch"))]            # her machine's defaults: not in a small sandbox
+        return [find_java(root, v), *jvm, main, *game]
+
+    def game_env(self): return {"PULSE_SINK": "rec", "__GL_THREADED_OPTIMIZATIONS": "0"}
+
+    def ready(self, text):
+        if self.args_world: return "joined the game" in text
+        return "Sound engine started" in text or "Created: " in text
+
+    def interesting(self, l):
+        return any(k in l for k in ("M2W", "Loading ", "joined the game", "ERROR", "m2wsmoke", "fabric-api ", "Minecraft ")) and len(l) < 400
+
+    def doctor_extra(self):
+        try: root, vid, v = self.profile(); java = find_java(root, v)
+        except (SystemExit, OSError, ValueError, KeyError) as e: return {"profile": None, "problem": str(e)}
+        return {"profile": vid, "java_needed": mcversion.java_major(v), "java": java, "worlds_from": str(gamedir_src())}
+
+    def cmd_worlds(self, a):
+        d = LAYER / "saves" if (LAYER / "saves").is_dir() else gamedir_src() / "saves"
+        for p in sorted(d.iterdir()) if d.is_dir() else []:
+            if (p / "level.dat").is_file(): print(p.name)
+        return 0
+
+    def cmd_account(self, a):
+        if a.what == "logout": msauth.logout(ACCOUNT); print("[ga-mc] signed out (saved token deleted)"); return 0
+        if a.what == "status":
+            if a.recheck:
+                try: msauth.recheck(ACCOUNT)
+                except msauth.AuthError as e: print(json.dumps({"recheck": "failed", "why": str(e)}))
+            print(json.dumps(msauth.status(ACCOUNT))); return 0
+        import time
+        end = time.time() + a.wait
+        while time.time() < end:
+            dc = msauth.device_code()
+            info = {"url": dc["verification_uri"], "code": dc["user_code"], "expires_at": int(time.time()) + int(dc.get("expires_in", 900))}
+            ACCOUNT.mkdir(parents=True, exist_ok=True); (ACCOUNT / "LOGIN.json").write_text(json.dumps(info))
+            print(f"[ga-mc] open {info['url']} on your phone or computer and enter the code {info['code']}", flush=True)
+            dc["expires_in"] = min(int(dc.get("expires_in", 900)), max(1, int(end - time.time())))
+            try: ms = msauth.poll(dc)
+            except msauth.AuthError as e:
+                if str(e) == "expired": print("[ga-mc] the code expired: a new one", flush=True); continue
+                (ACCOUNT / "LOGIN.json").unlink(missing_ok=True); self.die(str(e))
+            (ACCOUNT / "LOGIN.json").unlink(missing_ok=True)
+            try: r = msauth.check_and_save(ACCOUNT, ms)
+            except msauth.AuthError as e: self.die(str(e))
+            print(json.dumps({"signed_in": True, "owns_java": r["owns_java"], "items": r["items"], "has_profile": r["has_profile"]}), flush=True)
+            return 0 if r["owns_java"] else 4
+        (ACCOUNT / "LOGIN.json").unlink(missing_ok=True); self.die("no sign-in in time", 5)
+
+    def cmd_download(self, a):
+        st = msauth.status(ACCOUNT)
+        if not st.get("owns_java"): self.die("sign in first: ga-mc account login (the account must own Minecraft: Java Edition)", 4)
+        from gameanything import watchdog
+        import os
+        with watchdog.Heartbeat(lambda m: print(f"[ga-mc] {m}", flush=True), "mc_download", os.environ.get("GAMEANYTHING_LANG", "en")) as hb:
+            def log(m): hb.beat(); print(f"[ga-mc] {m}", flush=True)
+            r = mcdownload.download(DOWNLOAD, a.version, a.fabric, a.fabric_api, log=log)
+        print(json.dumps(r)); return 0
+
+    def main(self, doc, argv=None):
+        ap, sub = self.parser(doc)
+        s = sub.add_parser("account"); s.add_argument("what", choices=["login", "status", "logout"]); s.add_argument("--wait", type=int, default=1800)
+        s.add_argument("--recheck", action="store_true"); s.set_defaults(f=self.cmd_account)
+        s = sub.add_parser("download"); s.add_argument("--version", default=mcdownload.VERSION); s.add_argument("--fabric", default=mcdownload.FABRIC)
+        s.add_argument("--fabric-api", default=mcdownload.FABRIC_API); s.set_defaults(f=self.cmd_download)
+        sub.choices["run"].add_argument("--world"); sub.choices["run"].add_argument("--version")
+        sub.choices["doctor"].add_argument("--version")
+        sub.add_parser("worlds").set_defaults(f=self.cmd_worlds)
+        a = ap.parse_args(argv)
+        self.args_world = getattr(a, "world", None); self.args_version = getattr(a, "version", None)
+        return a.f(a)
+
+
+if __name__ == "__main__":
+    sys.exit(Mc().main(__doc__))

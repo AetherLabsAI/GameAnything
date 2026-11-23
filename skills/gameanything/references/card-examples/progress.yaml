@@ -1,0 +1,9 @@
+kind: progress
+title: 进行中
+milestone: 整天改进
+key: improve
+steps:
+  - {text: 读你的意见, state: done}
+  - {text: 搭白色大楼门口, state: current}
+  - {text: 少说多演、自动播放、背景音乐, state: todo}
+  - {text: 独立回放和审阅, state: todo}

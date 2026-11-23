@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "gameanything",
+  "version": "0.0.1",
+  "description": "Turn your memories (wedding, trip, photos) into playable content inside a game you own. Guides the agent through the whole GameAnything workflow with the gameanything CLI.",
+  "author": {
+    "name": "Wenyi Wu",
+    "url": "https://github.com/WenyiWU0111"
+  },
+  "homepage": "https://github.com/AetherLabsAI/GameAnything",
+  "repository": "https://github.com/AetherLabsAI/GameAnything",
+  "license": "Apache-2.0",
+  "keywords": [
+    "memories",
+    "games",
+    "stardew-valley",
+    "game-modding",
+    "agent-skills"
+  ]
+}

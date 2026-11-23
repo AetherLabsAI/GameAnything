@@ -1,0 +1,13 @@
+{
+  "name": "gameanything",
+  "owner": {
+    "name": "Wenyi Wu"
+  },
+  "plugins": [
+    {
+      "name": "gameanything",
+      "source": "./",
+      "description": "Turn your memories (wedding, trip, photos) into playable content inside a game you own. Guides the agent through the whole GameAnything workflow with the gameanything CLI."
+    }
+  ]
+}

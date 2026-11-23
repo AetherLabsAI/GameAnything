@@ -1,0 +1,40 @@
+# a go card always carries an estimate from `gameanything estimate --project "$P" ... --yaml` (D18): of the project's build model, the only model
+# builds run on. `chat card` adds `build_model` (shown read only on the card; she changes it with the 「构建」 chip) and drops `runners`.
+kind: go
+title: 14 条，每条都写着出自你哪句话
+milestone: m3            # the version's id in world_plan.yaml milestones (m1, m2…), never its name
+items:
+- 领证那天：新做白色大楼门口，九个人按照片站好
+- 少说多演、对话自动播放
+- 两段回忆和亲吻定格照
+- 背景音乐和真实掌声
+eta_hours: 5
+cost_usd: 55
+max_images: 80
+playtest_rounds: 6     # the user can change it on the card (1-10); the answer carries it (D22)
+wall_hours: 5
+open: '#plan'
+estimate:
+  wall_h:
+  - 4.2
+  - 5.0
+  cost_usd:
+  - 39
+  - 56
+  account: api
+  agent: claude-code
+  model: anthropic/claude-sonnet
+  note: 按过去 Claude Sonnet 跑的 3 期折算，价格表取于 2026-10-16。 整期里最长的一次 5 小时到点被停了，那次的花费没有记录，所以上限可能更高。
+en:
+  estimate:
+    wall_h:
+    - 4.2
+    - 5.0
+    cost_usd:
+    - 39
+    - 56
+    account: api
+    agent: claude-code
+    model: anthropic/claude-sonnet
+    note: Scaled from 3 past rounds run on Claude Sonnet; prices as of 2026-10-16. The longest past round was stopped at its 5 h cap and its cost
+      was not recorded, so the top may be higher.

@@ -1,0 +1,294 @@
+#!/usr/bin/env python3
+"""ga-ea: the EA App (Windows) under Wine inside a GameAnything sandbox, for The Sims 4 (verified in the lab 2026-10-29). Stdlib only.
+
+The user signs in to THEIR OWN EA account in the sandbox's viewer (they type the password and any e-mail / 2FA code themselves; this
+tool never sees, asks for or stores a password). Everything lives under GA_EA_HOME (default /sandbox/ea, the sandbox's data volume):
+the portable Wine, the prefix (EA App, its login, the game library) and the downloads, so a new sandbox with the same volume starts
+signed in and with the game already there.
+
+    ga-ea setup                 portable Wine (Kron4ek wine-11.19-staging-amd64-wow64: no 32-bit libraries needed), a fresh prefix,
+                                wine-mono + wine-gecko (REQUIRED: the EA installer's .NET custom action fails without mono), DXVK 3.1.1,
+                                and the EA App installer. Idempotent; about 1-2 min.
+    ga-ea install-app           start the EA App installer. Its first page is EA's User Agreement ("LET'S GO" = accept): the USER
+                                clicks it in the viewer; this tool never clicks it
+    ga-ea start                 start the EA App (EALauncher.exe from the versioned folder: Wine does not create the "EA Desktop"
+                                junction correctly)
+    ga-ea status [--json]       installer / app running?  sign-in window?  signed in?  The Sims 4 installed / downloading (bytes)?
+    ga-ea owns [--json]         is The Sims 4 in the signed-in account: {"owned": true|null, "source", "managed_by", "installed",
+                                "installing", "other_store"}. other_store only when the app says ANOTHER store manages the game
+                                (externalSource alone means a linked account: on 10-29 it was STEAM and the EA App still downloaded it)
+    ga-ea game                  where The Sims 4 is (folder, TS4_x64.exe, size)
+    ga-ea normalize             put the "EA" window back to its default size and place (1024x576): never maximise it without a window
+                                manager (the app then draws full screen while the X window stays small, and clicks land elsewhere)
+    ga-ea stop                  stop the EA App and the game: the exact pids of this prefix's wine processes, then `wineserver -k`
+
+The flow with progress and the watchdog is `gameanything lab login ea` on the host; inside the sandbox `ga-ea status --json` is what it
+reads. Nothing here reads the EA login files (cookies, tokens): only process lists, window titles and log lines.
+"""
+import argparse
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tarfile
+import time
+import urllib.request
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+for _p in (HERE.parent.parent.parent, Path("/opt/gameanything/lib-src"), Path("/opt/gameanything/src")):   # the watchdog: a checkout, or the image's copy
+    try:                                # a folder the player cannot read (an image built with umask 077): no watchdog, not a crash
+        if (_p / "gameanything" / "watchdog.py").is_file() and str(_p) not in sys.path: sys.path.append(str(_p))
+    except OSError:
+        pass
+try:
+    from gameanything import watchdog  # noqa: E402
+except Exception:
+    watchdog = None
+
+HOME = Path(os.environ.get("GA_EA_HOME", "/sandbox/ea"))
+PFX = Path(os.environ.get("WINEPREFIX", str(HOME / "pfx")))
+BAKED = Path(os.environ.get("GA_EA_BAKED", "/opt/gameanything"))      # the Sims 4 image's wine layer: Wine + mono + gecko + DXVK, pinned
+WINE_DIR = BAKED / "wine" if (BAKED / "wine" / "bin" / "wine").exists() else HOME / "wine"
+DXVK_DIR = BAKED / "dxvk" if (BAKED / "dxvk" / "x64").is_dir() else HOME / "dxvk"
+DL = HOME / "dl"
+LOGS = HOME / "logs"
+RUN = HOME / "run"
+DISPLAY = os.environ.get("DISPLAY", ":99")
+C = PFX / "drive_c"
+EA_DIR = C / "Program Files" / "Electronic Arts" / "EA Desktop"
+GAME_DIRS = [C / "Program Files" / "EA Games" / "The Sims 4"]
+GAME_EXE = Path("Game") / "Bin" / "TS4_x64.exe"
+URLS = {
+    "wine.tar.xz": "https://github.com/Kron4ek/Wine-Builds/releases/download/11.19/wine-11.19-staging-amd64-wow64.tar.xz",
+    "wine-mono-11.3.0-x86.msi": "https://dl.winehq.org/wine/wine-mono/11.3.0/wine-mono-11.3.0-x86.msi",
+    "wine-gecko-2.47.4-x86_64.msi": "https://dl.winehq.org/wine/wine-gecko/2.47.4/wine-gecko-2.47.4-x86_64.msi",
+    "wine-gecko-2.47.4-x86.msi": "https://dl.winehq.org/wine/wine-gecko/2.47.4/wine-gecko-2.47.4-x86.msi",
+    "dxvk.tar.gz": "https://github.com/doitsujin/dxvk/releases/download/v3.1.1/dxvk-3.1.1.tar.gz",
+    "EAappInstaller.exe": "https://origin-a.akamaihd.net/EA-Desktop-Client-Download/installer-releases/EAappInstaller.exe",
+}
+# what the windows are called (seen 2026-10-29); the sign-in page is inside the "EA" window, so the log says which page it is
+INSTALLER_WIN = "EA app installer"
+APP_WIN = "EA"
+EULA = {"publisher": "Electronic Arts", "agreement": "EA User Agreement", "url": "https://tos.ea.com/legalapp/WEBTERMS/US/en/PC/"}
+
+
+def say(*a): print("[ga-ea]", *a, flush=True)
+
+
+def die(msg, code=1):
+    print(f"[ga-ea] {msg}", file=sys.stderr, flush=True); sys.exit(code)
+
+
+def env():
+    e = dict(os.environ, WINEPREFIX=str(PFX), WINEARCH="win64", WINEDEBUG=os.environ.get("WINEDEBUG", "-all"), DISPLAY=DISPLAY,
+             XDG_RUNTIME_DIR=os.environ.get("XDG_RUNTIME_DIR", "/tmp/xdg-runtime"),
+             # the EA App's UI is Qt WebEngine (Chromium): containers have a tiny /dev/shm and no GPU for it
+             QTWEBENGINE_CHROMIUM_FLAGS="--disable-dev-shm-usage --no-sandbox --disable-gpu")
+    if (WINE_DIR / "bin" / "wine").exists(): e["PATH"] = f"{WINE_DIR / 'bin'}:{e.get('PATH', '')}"
+    Path(e["XDG_RUNTIME_DIR"]).mkdir(mode=0o700, parents=True, exist_ok=True)
+    # the EA App starts TS4_x64.exe again itself, so the game gets THIS environment: point it at the sandbox's PulseAudio (galab's, in
+    # /tmp/ga-xdg, not this XDG_RUNTIME_DIR) and its `rec` sink, or the game plays to nothing and `rec` records silence (hiccups #47)
+    e.setdefault("PULSE_SERVER", "unix:/tmp/ga-xdg/pulse/native"); e.setdefault("PULSE_SINK", "rec")
+    return e
+
+
+def wine(*args, wait=True, log=None):
+    LOGS.mkdir(parents=True, exist_ok=True)
+    out = open(LOGS / log, "ab") if log else subprocess.DEVNULL
+    p = subprocess.Popen(["wine", *args], env=env(), stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+    if wait: p.wait()
+    return p
+
+
+def fetch(name):
+    p = DL / name
+    if p.is_file() and p.stat().st_size > 0: return p
+    DL.mkdir(parents=True, exist_ok=True)
+    say(f"downloading {name}")
+    tmp = p.with_suffix(p.suffix + ".part")
+    with urllib.request.urlopen(URLS[name], timeout=120) as r, open(tmp, "wb") as f: shutil.copyfileobj(r, f, 1 << 20)
+    tmp.rename(p)
+    return p
+
+
+# ---------------------------------------------------------------- setup
+def setup(_a):
+    t0 = time.time()
+    baked = WINE_DIR == BAKED / "wine"
+    for n in URLS:                          # the image's wine layer has all but EA's installer (EA's terms: never in the image)
+        if not baked or n == "EAappInstaller.exe": fetch(n)
+    if baked: say(f"Wine, mono, gecko and DXVK from the image ({WINE_DIR})")
+    if not (WINE_DIR / "bin" / "wine").exists():
+        say("unpacking Wine (Python's lzma: some images have no xz)")
+        tmp = HOME / "wine.x"; shutil.rmtree(tmp, ignore_errors=True)
+        with tarfile.open(DL / "wine.tar.xz") as t: t.extractall(tmp)
+        top = next(tmp.iterdir()); shutil.rmtree(WINE_DIR, ignore_errors=True); top.rename(WINE_DIR); shutil.rmtree(tmp, ignore_errors=True)
+    # mono / gecko next to Wine: wineboot installs them itself instead of showing its "Wine Mono Installer" download dialog
+    for sub, names in (("mono", ["wine-mono-11.3.0-x86.msi"]), ("gecko", ["wine-gecko-2.47.4-x86.msi", "wine-gecko-2.47.4-x86_64.msi"])):
+        d = WINE_DIR / "share" / "wine" / sub; d.mkdir(parents=True, exist_ok=True)
+        if baked: continue
+        for n in names:
+            if not (d / n).exists(): shutil.copy2(DL / n, d / n)
+    if not (C / "windows" / "system32").is_dir():
+        say("creating the Wine prefix")
+        subprocess.run(["wineboot", "-i"], env=env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["wineserver", "-w"], env=env())
+    if not (C / "windows" / "mono").is_dir() or not any((C / "windows" / "mono").iterdir()):
+        for sub, n in (("mono", "wine-mono-11.3.0-x86.msi"), ("gecko", "wine-gecko-2.47.4-x86.msi"), ("gecko", "wine-gecko-2.47.4-x86_64.msi")):
+            wine("msiexec", "/i", str(WINE_DIR / "share" / "wine" / sub / n if baked else DL / n), "/qn")
+    dx = DXVK_DIR
+    if not dx.is_dir():
+        with tarfile.open(DL / "dxvk.tar.gz") as t: t.extractall(HOME / "dxvk.x")
+        next((HOME / "dxvk.x").iterdir()).rename(dx); shutil.rmtree(HOME / "dxvk.x", ignore_errors=True)
+    for arch, sysdir in (("x64", "system32"), ("x32", "syswow64")):
+        for dll in (dx / arch).glob("*.dll"): shutil.copy2(dll, C / "windows" / sysdir / dll.name)
+    for d in ("d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"):
+        wine("reg", "add", r"HKCU\Software\Wine\DllOverrides", "/v", d, "/d", "native,builtin", "/f")
+    subprocess.run(["wineserver", "-w"], env=env())
+    say(f"setup done in {int(time.time() - t0)} s: {subprocess.run(['wine', '--version'], env=env(), capture_output=True, text=True).stdout.strip()}")
+
+
+# ---------------------------------------------------------------- processes
+def procs():
+    """This prefix's Windows processes: [(pid, exe name)] (zombies left out)."""
+    out = []
+    for d in os.listdir("/proc"):
+        if not d.isdigit(): continue
+        try:
+            st = Path(f"/proc/{d}/stat").read_text().rsplit(")", 1)[1].split()[0]
+            if st == "Z": continue
+            argv = Path(f"/proc/{d}/cmdline").read_bytes().split(b"\0")
+            e = Path(f"/proc/{d}/environ").read_bytes()
+        except (OSError, IndexError): continue
+        if f"WINEPREFIX={PFX}".encode() + b"\0" not in e + b"\0": continue
+        a0 = argv[0].decode("utf-8", "replace")
+        m = re.search(r"([^\\/]+\.exe)$", a0, re.I)
+        if m: out.append((int(d), m.group(1)))
+        elif a0.endswith("wineserver"): out.append((int(d), "wineserver"))
+    return out
+
+
+def windows():
+    e = dict(os.environ, DISPLAY=DISPLAY)
+    r = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "."], capture_output=True, text=True, env=e)
+    out = []
+    for w in r.stdout.split():
+        n = subprocess.run(["xdotool", "getwindowname", w], capture_output=True, text=True, env=e).stdout.strip()
+        g = re.search(r"Geometry: (\d+)x(\d+)", subprocess.run(["xdotool", "getwindowgeometry", w], capture_output=True, text=True, env=e).stdout)
+        n = n.replace("\u00a0", " ")                # EA's titles use a no-break space ("EA\u00a0app installer")
+        if n: out.append({"title": n[:120], "w": int(g.group(1)) if g else 0, "h": int(g.group(2)) if g else 0})
+    return out
+
+
+def launcher():
+    """EALauncher.exe in the newest versioned folder (EA Desktop/<version>/EA Desktop/), else the junction path."""
+    vers = sorted((p for p in EA_DIR.glob("*/EA Desktop/EALauncher.exe")), key=lambda p: [int(x) if x.isdigit() else 0 for x in p.parts[-3].split(".")])
+    if vers: return vers[-1]
+    p = EA_DIR / "EA Desktop" / "EALauncher.exe"
+    return p if p.exists() else None
+
+
+def du_bytes(p: Path) -> int:
+    if not p.exists(): return 0
+    r = subprocess.run(["du", "-sb", str(p)], capture_output=True, text=True, timeout=120)
+    try: return int(r.stdout.split()[0])
+    except (IndexError, ValueError): return 0
+
+
+def game():
+    for d in GAME_DIRS:
+        if d.is_dir():
+            return {"dir": str(d), "exe": (d / GAME_EXE).is_file(), "bytes": du_bytes(d)}
+    return {"dir": None, "exe": False, "bytes": 0}
+
+
+def start(_a):
+    l = launcher()
+    if not l: die("the EA App is not installed in this prefix: run `ga-ea install-app` first", 2)
+    if any(n.lower() == "eadesktop.exe" for _, n in procs()): say("the EA App is already running"); return
+    RUN.mkdir(parents=True, exist_ok=True)
+    p = wine(str(l), wait=False, log="ea-app.log")
+    (RUN / "ea.started").write_text(str(int(time.time())))
+    say(f"EA App starting (pid {p.pid}, {l.parent.parent.name})")
+
+
+def install_app(_a):
+    if launcher(): say("the EA App is already installed"); return
+    fetch("EAappInstaller.exe")
+    p = wine(str(DL / "EAappInstaller.exe"), wait=False, log="ea-installer.log")
+    say(f"installer started (pid {p.pid}). Its first page is EA's User Agreement ({EULA['url']}): the USER reads it and clicks "
+        "LET'S GO in the viewer if they agree; nothing is clicked for them")
+
+
+def stop(_a):
+    ps = procs()
+    for pid, n in ps:
+        if n != "wineserver":
+            try: os.kill(pid, signal.SIGTERM)
+            except OSError: pass
+    for _ in range(20):
+        if not [p for p in procs() if p[1] != "wineserver"]: break
+        time.sleep(1)
+    subprocess.run(["wineserver", "-k"], env=env())
+    say(f"stopped {len(ps)} process(es) of this prefix")
+
+
+def status(a):
+    ps = [n.lower() for _, n in procs()]
+    ws = windows()
+    titles = [w["title"] for w in ws]
+    g = game()
+    f = facts() if watchdog else {}
+    s = {"fsm": f.get("ea_fsm"), "login_window": bool(f.get("ea_login_window")), "signed_in": bool(f.get("ea_signed_in")),
+         "installer_running": "eaappinstaller.exe" in ps, "app_installed": bool(launcher()), "app_running": "eadesktop.exe" in ps,
+         "installer_window": INSTALLER_WIN in titles, "app_window": APP_WIN in titles, "windows": ws,
+         "game_running": "ts4_x64.exe" in ps, "game_dir": g["dir"], "game_exe": g["exe"], "game_bytes": g["bytes"]}
+    print(json.dumps(s) if a.json else "\n".join(f"{k}: {v}" for k, v in s.items()))
+
+
+def facts():
+    if not watchdog: die("the watchdog module is missing from this image", 6)
+    try: started = int((RUN / "ea.started").read_text())
+    except (OSError, ValueError): started = 0
+    return watchdog.facts(watchdog.collect(watchdog.LocalBox(), "ea", display=DISPLAY, root=str(HOME)), {"ea_started_at": started})
+
+
+def normalize(_a):
+    e = dict(os.environ, DISPLAY=DISPLAY)
+    w = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^EA$"], capture_output=True, text=True, env=e).stdout.split()
+    if not w: die("no EA window", 3)
+    for args in (["windowsize", w[0], "1024", "576"], ["windowmove", w[0], "128", "72"]):
+        subprocess.run(["xdotool", *args], env=e)
+    say("EA window at 128,72 1024x576 (default); take a fresh screenshot before the next click")
+
+
+def owns(a):
+    f = facts()
+    seen = f.get("ea_game_source") is not None or f.get("ea_game_installed") or f.get("ea_game_installing")
+    o = {"signed_in": bool(f.get("ea_signed_in")), "owned": True if seen else None, "source": f.get("ea_game_source"),
+         "installed": bool(f.get("ea_game_installed")), "installing": bool(f.get("ea_game_installing")),
+         "managed_by": f.get("ea_game_managed_by"), "steam_owned": bool(f.get("ea_steam_owned")),
+         "other_store": bool(f.get("ea_external_owned"))}
+    print(json.dumps(o) if a.json else "\n".join(f"{k}: {v}" for k, v in o.items()))
+
+
+def main():
+    try:                                # --user <uid> on a pulled image: an account line for Wine (galab.ensure_account), if galab is here
+        sys.path.insert(0, "/usr/local/lib/gameanything"); import galab; galab.ensure_account()
+    except Exception:
+        pass
+    ap = argparse.ArgumentParser(prog="ga-ea", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    for n in ("setup", "install-app", "start", "stop", "game", "normalize"): sub.add_parser(n)
+    for n in ("status", "owns"): sub.add_parser(n).add_argument("--json", action="store_true")
+    a = ap.parse_args()
+    if a.cmd == "game": print(json.dumps(game())); return
+    {"setup": setup, "install-app": install_app, "start": start, "stop": stop, "status": status, "owns": owns, "normalize": normalize}[a.cmd](a)
+
+
+if __name__ == "__main__":
+    main()

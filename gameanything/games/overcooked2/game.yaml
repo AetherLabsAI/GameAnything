@@ -1,0 +1,59 @@
+# Overcooked! 2: a built-in game package (gameanything/games/README.md). The code adapter is Overcooked2 in native/games.py;
+# the folders below document what it finds (the adapter is the source for them), the rest is read by the registry.
+id: overcooked2
+order: 50
+title: Overcooked! 2
+title_zh: 胡闹厨房 2
+steam_appid: 728880
+engine: unity-mono (Unity 2017.4, .NET 3.5)
+adapter: gameanything.native.games:Overcooked2
+pin_var: GAMEANYTHING_OC2_DIR
+loader:
+  name: BepInEx 5
+  type: bepinex
+  url: https://github.com/BepInEx/BepInEx/releases
+folders:
+  game:
+    marker: Overcooked2_Data/Managed/Assembly-CSharp.dll
+  user:
+    windows: '{home}/AppData/LocalLow/Team17/Overcooked2'
+    mac: '{home}/Library/Application Support/Team17/Overcooked2'
+    linux: '{xdg_config}/unity3d/Team17/Overcooked2'
+  mods: '{game}/BepInEx/plugins'
+saves:
+- '{user}'
+logs:
+- '{game}/BepInEx/LogOutput.log'
+- Player.log (Unity)
+process_names:
+  mac:
+  - Overcooked2
+  linux:
+  - Overcooked2.x86_64
+  - Overcooked2.x86
+  windows:
+  - Overcooked2.exe
+launch:
+  url: steam://rungameid/728880
+  option: '"<game folder>/run_bepinex.sh" %command% (macOS / Linux)'
+toolchain:
+  kind: dotnet
+  major: 6
+  purpose: the BepInEx plugin DLL (net35)
+smoke: ../../worlds/overcooked2/smoke
+lab:
+  supported: true
+  steam: true
+tests:
+- tests/test_native.py
+desc: 厨房合作闯关，适合功能和回忆项目：新菜谱、新关卡和厨房机制的 mod，构建和截图都能做；试玩录像还在接入
+desc_en: 'Co-op kitchen chaos, made for feature and memory projects: mods with new recipes, levels and kitchen mechanics; builds and screenshots work, playthrough videos are still being connected'
+window:
+  how: Steam 启动选项在 %command% 后面加 -screen-fullscreen 0 -screen-width 1280 -screen-height 720（Unity 的参数）
+verified:                         # real round trips: docs/cross-platform.md ("Verified on real games")
+- {system: linux, date: '2026-10-25', result: pass}
+- {system: mac, date: '2026-10-25', result: pass}
+- {system: windows, date: '2026-11-01', result: pass, how: "a real Windows 11 PC (x64, Steam, OneDrive Documents): BepInEx 5.4.23.5 x86 (the game is 32-bit: the x64 build never loads); doctor, build, check, backup, install, Steam launch, '[M2W-smoke] loaded' in LogOutput.log, close, uninstall"}
+sandbox:                          # the user's own Docker sandbox (gameanything/sandbox.py): the sandbox runs the Linux build: mount a Linux install, else download it with Steam
+  build: linux
+  three_d: true

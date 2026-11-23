@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "m2wsmoke",
+  "version": "1.0.0",
+  "name": "M2W smoke ({{title}})",
+  "environment": "*",
+  "entrypoints": {"main": ["m2wsmoke.SmokeMod"]},
+  "depends": {"fabricloader": "*"}
+}

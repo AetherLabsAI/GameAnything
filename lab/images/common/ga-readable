@@ -1,0 +1,29 @@
+#!/bin/sh
+# The last step of every RUN in lab/images/*/Dockerfile: whatever the builder's umask was, every file and folder the player needs is
+# readable (and every folder / executable enterable) by any uid: the player is uid 1000, or another uid with docker run --user.
+# Why: docker-rt's kaniko worker runs the executor under `umask 077` and every RUN inherited it: the images of 2026-10-30 had /opt/gameanything, /game, /saves and
+# /usr/local/lib/gameanything mode 700 root (docs/sandbox-images.md). A local build from a checkout made with umask 077 has the same
+# problem through COPY (cp keeps the 600 of the sources). Only the entries that lack a bit are touched (no layer bloat).
+#   GA_READABLE_PRIVATE="<path> ..."   paths to leave as they are (none today: nothing under these folders is meant to be private)
+#   GA_READABLE_ROOTS="<dir> ..."      the folders to walk (default below; the tests pass a scratch tree)
+#   GA_ACCOUNT_FILES="<file> ..."      kept mode 666 (default /etc/passwd /etc/group; the tests pass scratch files)
+# /etc/passwd and /etc/group stay 666 (install-system.sh): galab.ensure_account adds the line of a `docker run --user` uid. A package
+# that adds a system group rewrites the file 664 (the wine layer's rdma-core and winbind, 2026-10-30 rebuild): set it back here.
+set -eu
+umask 022
+PRIVATE=${GA_READABLE_PRIVATE:-}
+ROOTS=${GA_READABLE_ROOTS:-/opt/gameanything /opt/python3.7 /usr/local/lib/gameanything /usr/local/bin /game /saves /sandbox /home/player}
+n=0
+for p in $ROOTS; do
+  [ -e "$p" ] || continue
+  set --                                            # the prune list: the build's own source copy (removed after this) + PRIVATE
+  for q in /opt/gameanything/src $PRIVATE; do set -- "$@" -o -path "$q"; done
+  shift
+  c=$(find "$p" \( "$@" \) -prune -o ! -type l \( \( -type d ! -perm -o=rx \) -o \( ! -type d ! -perm -o=r \) \
+        -o \( -type f -perm -u=x ! -perm -o=x \) \) -print -exec chmod go+rX {} + | wc -l)
+  n=$((n + c))
+done
+for f in ${GA_ACCOUNT_FILES:-/etc/passwd /etc/group}; do
+  [ -f "$f" ] && [ ! -L "$f" ] && chmod 666 "$f"
+done
+echo "[ga-readable] $n entries made readable for every uid"

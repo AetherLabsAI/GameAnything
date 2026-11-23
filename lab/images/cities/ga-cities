@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""ga-cities: the Cities: Skylines sandbox tool inside the GameAnything Cities image (lab/images/cities). Stdlib only.
+
+The image has NO game files. The user's own Cities: Skylines folder (the Linux build: Cities.x64, Cities_Data/) is mounted READ-ONLY at
+/game, or downloaded with Steam in the sandbox (GA_GAME=<the Steam library's common/Cities_Skylines>; Steam shows the Paradox User
+Agreement after Install: the user accepts it). The game needs a running, logged-in Steam client (ga-steam start).
+
+    ga-cities doctor | layer [--force] | up | run | shot FILE | rec start|stop | log [-n N] | stop | down
+      layer        /sandbox/game: Cities_Data/ and the DLC / Files folders linked into /game, the small files copied
+      run          Cities.x64 windowed (-noWorkshop: only the sandbox's own mods), wait for the window and the main menu in the log
+
+Mods: gameanything native build --game cities_skylines --install <mod> (GAMEANYTHING_CITIES_DIR=/sandbox/game): the mod goes to
+~/.local/share/Colossal Order/Cities_Skylines/Addons/Mods/ in the sandbox's home, never to the user's own folder.
+"""
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, "/usr/local/lib/gameanything")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))      # running from a checkout
+import galab  # noqa: E402
+from galab import GAME, LAYER, LOGS, copy_entries  # noqa: E402
+
+LINKED = ("Cities_Data", "Files", "Dlc", "Maps", "Mods")
+SKIPPED = ("steamapps", "Cities_Data_backup")
+APPID = "255710"
+
+
+def cities_build(d: Path) -> str:
+    if (d / "Cities.x64").exists() and (d / "Cities_Data" / "Managed" / "ICities.dll").is_file(): return "linux"
+    if (d / "Cities.exe").exists(): return "windows"
+    if (d / "Cities.app").exists() or (d / "Contents" / "MacOS").is_dir(): return "mac"
+    return "none"
+
+
+class Cities(galab.Lab):
+    name, title, window = "ga-cities", "Cities: Skylines", "^Cities: Skylines"
+    mount_hint = "mount your Cities: Skylines folder (the one with Cities.x64 and Cities_Data/): -v <folder>:/game:ro"
+
+    def game_build(self): return cities_build(GAME)
+
+    def build_hints(self):
+        return {"windows": "this is the Windows build; the sandbox runs the Linux build (download it in the sandbox with Steam, or use native mode)",
+                "mac": "this is the Mac build; the sandbox runs the Linux build (download it in the sandbox with Steam, or use native mode)"}
+
+    def make_layer(self):
+        copied, linked = copy_entries(GAME, LAYER, link=LINKED, skip=lambda n: n in SKIPPED)
+        return {"copied": copied, "linked": linked}
+
+    def layer_ok(self): return (LAYER / ".ga-layer.json").is_file() and (LAYER / "Cities.x64").exists()
+    def log_file(self): return LOGS / "Player.log"
+
+    def game_argv(self):
+        w, h = galab.size()
+        return [str(LAYER / "Cities.x64"), "-screen-fullscreen", "0", "-screen-width", str(w), "-screen-height", str(h), "-noWorkshop",
+                "-logFile", str(self.log_file())]
+
+    def game_env(self): return {"SteamAppId": APPID, "SteamGameId": APPID, "PULSE_SINK": "rec"}
+    # the 2026 Linux build logs no "MainMenu": the menu saves userGameState.cgs, the smoke mod says "menu True" / "city loaded"
+    # (plain Docker test 2026-10-30: up after 26 s, ga-cities waited 420 s for the old words)
+    # ("Loading ...userGameState.cgs" comes at start-up, long before the menu: only the Saving line counts)
+    def ready(self, text): return bool(re.search(r"^Saving .*userGameState\.cgs", text, re.M)) or any(k in text for k in (
+        "MainMenu", "Main menu", "Loading level MainMenu", "[M2W-smoke] waiting: menu True", "[M2W-smoke] city loaded"))
+    def interesting(self, l): return any(k in l for k in ("M2W", "Mod ", "Exception", "Compil"))
+    def doctor_extra(self): return {"steam_running": galab.steam_running()}
+
+    def cmd_run(self, a):
+        if not galab.steam_running(): self.say(f"Steam is not running in this sandbox: {self.title} needs it (ga-steam start, log in once)")
+        return super().cmd_run(a)
+
+
+if __name__ == "__main__":
+    sys.exit(Cities().main(__doc__))

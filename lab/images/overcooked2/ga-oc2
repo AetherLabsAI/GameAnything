@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""ga-oc2: the Overcooked! 2 (BepInEx 5) sandbox tool inside the GameAnything Overcooked! 2 image (lab/images/overcooked2). Stdlib only.
+
+The image has NO game files. The user's own Overcooked! 2 folder (the Linux build: Overcooked2.x86_64, Overcooked2_Data/) is mounted
+READ-ONLY at /game, or downloaded with Steam in the sandbox (GA_GAME=<the Steam library's common/Overcooked! 2>). The game calls
+SteamAPI: Steam must be running in the sandbox (ga-steam start, logged in once).
+
+    ga-oc2 doctor | layer [--force] | up | run | shot FILE | rec start|stop | log [-n N] | stop | down
+      layer        /sandbox/game: Overcooked2_Data/ linked into /game, the small files copied, the user's own BepInEx and plugins left
+                   out, the image's pinned BepInEx 5.4.23.5 unpacked (run_bepinex.sh)
+      run          Overcooked2.x86_64 through run_bepinex.sh, windowed, wait for "Chainloader startup complete"
+
+Plugins: gameanything native build --game overcooked2 --install <plugin> (GAMEANYTHING_OC2_DIR=/sandbox/game) -> BepInEx/plugins/.
+"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, "/usr/local/lib/gameanything")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))      # running from a checkout
+import galab  # noqa: E402
+from galab import GAME, LAYER, copy_entries  # noqa: E402
+
+EXE = "Overcooked2.x86_64"
+LINKED = ("Overcooked2_Data",)
+SKIPPED = ("BepInEx", "doorstop_libs", "doorstop_config.ini", "libdoorstop.so", "libdoorstop_x64.so", "run_bepinex.sh", "winhttp.dll",
+           ".doorstop_version", "steamapps")
+APPID = "728880"
+
+
+def unity_build(d: Path, exe: str) -> str:
+    stem = exe.rsplit(".", 1)[0]
+    if (d / exe).exists() and (d / f"{stem}_Data" / "Managed").is_dir(): return "linux"
+    if (d / f"{stem}.exe").exists(): return "windows"
+    if any(d.glob("*.app")): return "mac"
+    return "none"
+
+
+class Overcooked2(galab.Lab):
+    name, title, window = "ga-oc2", "Overcooked! 2", "^Overcooked"
+    mount_hint = "mount your Overcooked! 2 folder (the one with Overcooked2.x86_64): -v <folder>:/game:ro"
+
+    def game_build(self): return unity_build(GAME, EXE)
+
+    def build_hints(self):
+        return {"windows": "this is the Windows build; the sandbox runs the Linux build (download it in the sandbox with Steam, or use native mode)",
+                "mac": "this is the Mac build; the sandbox runs the Linux build (download it in the sandbox with Steam, or use native mode)"}
+
+    def make_layer(self):
+        copied, linked = copy_entries(GAME, LAYER, link=LINKED, skip=lambda n: n in SKIPPED)
+        return {"copied": copied, "linked": linked, "bepinex": galab.bepinex_install(LAYER, EXE)}
+
+    def layer_ok(self): return (LAYER / ".ga-layer.json").is_file() and (LAYER / "run_bepinex.sh").is_file()
+    def log_file(self): return LAYER / "BepInEx" / "LogOutput.log"
+
+    def game_argv(self):
+        w, h = galab.size()
+        return ["sh", str(LAYER / "run_bepinex.sh"), str(LAYER / EXE), "-screen-fullscreen", "0", "-screen-width", str(w), "-screen-height", str(h)]
+
+    def game_env(self): return {"SteamAppId": APPID, "SteamGameId": APPID, "PULSE_SINK": "rec"}
+    def ready(self, text): return "Chainloader startup complete" in text
+    def interesting(self, l): return any(k in l for k in ("M2W", "Loading [", "Error", "Chainloader"))
+    def doctor_extra(self): return {"steam_running": galab.steam_running()}
+
+    def cmd_run(self, a):
+        if not galab.steam_running(): self.say(f"Steam is not running in this sandbox: {self.title} needs it (ga-steam start, log in once)")
+        return super().cmd_run(a)
+
+
+if __name__ == "__main__":
+    sys.exit(Overcooked2().main(__doc__))

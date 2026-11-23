@@ -1,0 +1,8 @@
+kind: permission
+title: 把缩小后的照片发给模型看
+to: 你正在用的 Claude 会话（再由它发给模型）
+will_send:
+  - 38 张缩到 1024 像素的照片、2 段致辞的文字
+will_not_send:
+  - 原图、视频、请柬原件
+cost_usd: 0

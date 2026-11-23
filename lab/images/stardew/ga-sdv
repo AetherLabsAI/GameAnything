@@ -1,0 +1,462 @@
+#!/usr/bin/env python3
+"""ga-sdv: the Stardew Valley sandbox tool inside the GameAnything Stardew image (lab/images/stardew). Stdlib only.
+
+The image has NO game files. The user's own game folder is mounted READ-ONLY at /game; everything the sandbox writes goes to the
+writable volume /sandbox, so the user's game and saves are never changed:
+
+    /game        the user's Stardew Valley folder (the Linux build), read-only        docker run -v <folder>:/game:ro
+    /saves       optional: the user's StardewValley data folder (Saves/), read-only   -v ~/.config/StardewValley:/saves:ro
+    /sandbox     writable (a named volume or an empty folder): the game layer, saves, logs, screenshots, recordings
+
+    ga-sdv doctor [--json]       what is mounted (game build: linux / windows / mac / none), the layer, SMAPI, Content Patcher, the display
+    ga-sdv layer [--force]       /sandbox/game: a private copy of the small game files (~150 MB), Content/ a link into /game,
+                                 the user's own SMAPI and mods left out, the image's pinned SMAPI installed, Mods/ fresh with
+                                 Content Patcher (built offline from the image's pinned source, ~15 s; a layer that is already there
+                                 only gets Content Patcher when it lacks that version);
+                                 /sandbox/saves: a copy of /saves (when mounted), used as ~/.config/StardewValley
+    ga-sdv up                    the virtual screen (Xvfb), x11vnc and the noVNC viewer on port 6080 (http://<host>:6080/vnc.html)
+    ga-sdv run                   start SMAPI from the layer (background), wait until the mods are loaded and the window is up
+    ga-sdv shot FILE             a PNG of the screen
+    ga-sdv rec start|stop        record the screen to /sandbox/rec/<time>.mkv (MJPEG: cheap here; encode the final video on the host)
+    ga-sdv console CMD           type a command into the SMAPI console
+    ga-sdv log [-n N]            the end of the SMAPI log
+    ga-sdv stop                  stop the game (and a recording); `ga-sdv down` also stops the screen and the viewer
+
+Mods are built and installed with GameAnything itself: `gameanything native build --game stardew --install <mod folder>`
+(GAMEANYTHING_STARDEW_DIR=/sandbox/game is set in the image). Every process is started with a pid file and stopped by that exact pid.
+"""
+import argparse
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import tarfile
+import time
+import zipfile
+from fnmatch import fnmatch
+from pathlib import Path
+
+GAME = Path(os.environ.get("GA_GAME", "/game"))
+SAVES_IN = Path(os.environ.get("GA_SAVES", "/saves"))
+SANDBOX = Path(os.environ.get("GA_SANDBOX", "/sandbox"))
+LAYER = SANDBOX / "game"
+SAVES = SANDBOX / "saves"
+LOGS = SANDBOX / "logs"
+RUN = SANDBOX / "run"                       # pid files
+VENDOR = Path(os.environ.get("GA_VENDOR", "/opt/gameanything/vendor"))
+DISPLAY = os.environ.get("DISPLAY", ":99")
+SCREEN = os.environ.get("SCREEN", "1280x720x24")
+VIEWER_PORT = int(os.environ.get("NOVNC_PORT", "6080"))
+VNC_PORT = int(os.environ.get("VNC_PORT", "5900"))
+VIEWER_BIND = os.environ.get("VIEWER_BIND", "0.0.0.0")
+
+LINKED = ("Content",)                                           # big and read-only: a link into /game
+SKIPPED = ("_smapi", "save-backups", "Mods", "smapi-internal", "StardewValley-original")
+SMAPI_FILES = ("StardewModdingAPI",)                            # every StardewModdingAPI* file is the user's SMAPI: left out
+CP_DIR = "ContentPatcher"                                       # Mods/<this> in the layer
+CP_PARTS = ("*/ContentPatcher/*", "*/Common/*", "*/Directory.Build.props", "*/Directory.Packages.props", "*/LICENSE")   # what its build reads
+CP_LINK = "https://www.nexusmods.com/stardewvalley/mods/1915"
+
+
+def unpack_parts(tar, dst, parts, log) -> bool:
+    """tar xzf TAR -C DST --strip-components=1 --wildcards PARTS, in Python: GNU tar's --wildcards is unknown to macOS's bsdtar (the
+    tests run this script there, 2026-11-01). A member that would land outside DST is refused."""
+    dst = Path(dst).resolve(); n = 0
+    try:
+        with tarfile.open(tar, "r:gz") as t:
+            for m in t.getmembers():
+                if not any(fnmatch(m.name, pat) for pat in parts) or "/" not in m.name: continue
+                rel = m.name.split("/", 1)[1]
+                out = (dst / rel).resolve()
+                if dst not in out.parents or m.issym() or m.islnk(): print(f"refused: {m.name}", file=log); return False
+                if m.isdir(): out.mkdir(parents=True, exist_ok=True); continue
+                if not m.isfile(): continue
+                out.parent.mkdir(parents=True, exist_ok=True)
+                with t.extractfile(m) as src, open(out, "wb") as o: shutil.copyfileobj(src, o)
+                n += 1
+    except (OSError, tarfile.TarError) as e:
+        print(f"cannot unpack {tar}: {e}", file=log); return False
+    return n > 0
+
+
+def x86(argv):
+    """argv under FEX-Emu when this image has it (arm64, Apple silicon: lab/images/common/install-steam-fex.sh), else argv as it is.
+    The games are x86 programs; GameAnything and the mod builds stay native."""
+    if not shutil.which("ga-x86"): return list(argv)
+    return ["ga-x86", "/bin/bash" if argv[0] == "bash" else argv[0], *argv[1:]]
+
+
+def say(*a): print("[ga-sdv]", *a, flush=True)
+
+
+def die(msg, code=1):
+    print(f"[ga-sdv] {msg}", file=sys.stderr, flush=True); sys.exit(code)
+
+
+# ---------------------------------------------------------------- what is mounted
+def game_build(d: Path) -> str:
+    """'linux' | 'windows' | 'mac' | 'none' for a mounted Stardew folder (the Linux build is the only one this sandbox runs)."""
+    if (d / "Contents" / "MacOS").is_dir(): return "mac"                         # the .app bundle
+    if not (d / "Stardew Valley.dll").exists(): return "none"
+    if (d / "Stardew Valley.exe").exists(): return "windows"
+    if (d / "libcoreclr.dylib").exists(): return "mac"                            # Contents/MacOS mounted directly
+    if (d / "libcoreclr.so").exists() or (d / "StardewValley").exists(): return "linux"
+    return "none"
+
+
+def writable(d: Path) -> bool:
+    try:
+        d.mkdir(parents=True, exist_ok=True); t = d / f".ga-write-test-{os.getpid()}"; t.write_text("x"); t.unlink(); return True
+    except OSError: return False
+
+
+def read_only(d: Path) -> bool:
+    """True when nothing can be created in d (the mount is :ro). Never leaves a file behind."""
+    t = d / f".ga-ro-test-{os.getpid()}"
+    try: fd = os.open(t, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except OSError: return True
+    os.close(fd); t.unlink(); return False
+
+
+def container_started():
+    """When this container (its PID 1) started, in epoch seconds; 0 when unknown. A pid file older than that is from before a
+    `docker stop` / `docker start` (or another container on the same volume): its pid number now belongs to some other process."""
+    try:
+        ticks = int(Path("/proc/1/stat").read_text().rsplit(")", 1)[1].split()[19])
+        btime = int(next(l.split()[1] for l in Path("/proc/stat").read_text().splitlines() if l.startswith("btime ")))
+        return btime + ticks / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError, StopIteration): return 0
+
+
+def pid_alive(name):
+    p = RUN / f"{name}.pid"
+    try: pid = int(p.read_text())
+    except (OSError, ValueError): return None
+    try:
+        if p.stat().st_mtime < container_started() - 1: return None     # plain Docker 10-29: after a restart Xvfb was "running" (no screen)
+    except OSError: return None
+    try: os.kill(pid, 0); return pid
+    except OSError: return None
+
+
+def doctor(a):
+    d = {"game": str(GAME), "game_build": game_build(GAME), "game_read_only": read_only(GAME) if GAME.is_dir() else None,
+         "saves_mounted": (SAVES_IN / "Saves").is_dir(), "sandbox": str(SANDBOX), "sandbox_writable": writable(SANDBOX),
+         "layer": (LAYER / ".ga-layer.json").is_file(), "smapi": (LAYER / "StardewModdingAPI.dll").is_file(),
+         "smapi_vendor": sorted(p.name for p in VENDOR.glob("SMAPI-*-installer.zip")),
+         "content_patcher": cp_installed(LAYER), "content_patcher_vendor": (cp_vendor() or [None])[0],
+         "display": bool(pid_alive("xvfb")), "viewer": bool(pid_alive("websockify")), "game_running": bool(pid_alive("smapi"))}
+    hint = {"none": "mount your Stardew Valley folder: -v <folder>:/game:ro", "windows": "this is the Windows build; the sandbox needs the Linux "
+            "build (download it in the sandbox with Steam, or use native mode)", "mac": "this is the Mac build; the sandbox needs the Linux build"}
+    if d["game_build"] in hint: d["hint"] = hint[d["game_build"]]
+    if a.json: print(json.dumps(d, indent=1)); return 0
+    for k, v in d.items(): print(f"{k:18} {v}")
+    return 0
+
+
+# ---------------------------------------------------------------- the writable layer
+def install_smapi(layer: Path):
+    zips = sorted(VENDOR.glob("SMAPI-*-installer.zip"))
+    if not zips: die(f"no SMAPI installer in {VENDOR}")
+    z = zips[-1]; tmp = SANDBOX / "tmp" / "smapi"
+    shutil.rmtree(tmp, ignore_errors=True); tmp.mkdir(parents=True)
+    subprocess.run(["unzip", "-q", str(z), "-d", str(tmp)], check=True)
+    inst = next(tmp.glob("SMAPI * installer/internal/linux/SMAPI.Installer"), None)
+    if not inst: die(f"{z.name}: no internal/linux/SMAPI.Installer inside")
+    os.chmod(inst, 0o755)
+    LOGS.mkdir(parents=True, exist_ok=True)
+    with open(LOGS / "smapi-install.log", "w") as log:
+        r = subprocess.run([*x86([str(inst)]), "--install", "--game-path", str(layer), "--no-prompt"], stdin=subprocess.DEVNULL, stdout=log,
+                           stderr=subprocess.STDOUT, cwd=inst.parent, timeout=600)
+    shutil.rmtree(tmp, ignore_errors=True)
+    if r.returncode != 0 or not (layer / "StardewModdingAPI.dll").is_file():
+        die(f"SMAPI install failed (exit {r.returncode}); see {LOGS / 'smapi-install.log'}")
+    return z.name
+
+
+def cp_vendor():
+    """The image's Content Patcher: (version, its source tarball, the offline NuGet folder), or None (lab/images/stardew/install.sh)."""
+    for t in sorted(VENDOR.glob("ContentPatcher-*-src.tar.gz")):
+        v = t.name[len("ContentPatcher-"):-len("-src.tar.gz")]
+        return v, t, VENDOR / f"ContentPatcher-{v}-nuget"
+    return None
+
+
+def cp_installed(layer: Path):
+    """The version of Content Patcher in <layer>/Mods (its manifest.json next to ContentPatcher.dll), or None."""
+    d = layer / "Mods" / CP_DIR
+    try: m = json.loads((d / "manifest.json").read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError): return None
+    return str(m.get("Version")) if isinstance(m, dict) and m.get("Version") and (d / "ContentPatcher.dll").is_file() else None
+
+
+def install_cp(layer: Path):
+    """Content Patcher into <layer>/Mods/ContentPatcher: built from the image's pinned source with `dotnet build` against this layer
+    (the game copy + SMAPI), NuGet only from the image's offline folder (no network), ModBuildConfig's own release zip unpacked; the
+    same version already there = nothing to do. Never fatal: SMAPI C# mods work without it, only content packs need it.
+    -> (version or None, what happened)."""
+    v = cp_vendor()
+    if not v: return None, "this image has no Content Patcher source: content packs (ContentPackFor Pathoschild.ContentPatcher) will not load"
+    ver, tar, nuget = v
+    if cp_installed(layer) == ver: return ver, f"Content Patcher {ver} already installed"
+    dn = os.environ.get("GA_DOTNET") or shutil.which("dotnet")
+    why = None; t0 = time.time(); tmp = SANDBOX / "tmp" / "content-patcher"; log = LOGS / "content-patcher-build.log"
+    shutil.rmtree(tmp, ignore_errors=True); (tmp / "src").mkdir(parents=True); (tmp / "home").mkdir(); LOGS.mkdir(parents=True, exist_ok=True)
+    (tmp / "src" / "global.json").write_text('{"sdk": {"version": "10.0.100", "rollForward": "latestFeature"}}\n')   # C# 14: the .NET 10 SDK
+    (tmp / "NuGet.Config").write_text('<?xml version="1.0" encoding="utf-8"?>\n<configuration><packageSources><clear />'
+                                      f'<add key="gameanything-vendor" value="{nuget}" /></packageSources></configuration>\n')
+    env = {**os.environ, "HOME": str(tmp / "home"), "DOTNET_CLI_HOME": str(tmp / "home"), "NUGET_PACKAGES": str(tmp / "packages"),
+           "DOTNET_CLI_TELEMETRY_OPTOUT": "1", "DOTNET_NOLOGO": "1", "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": "1",
+           "MSBUILDDISABLENODEREUSE": "1", "DOTNET_CLI_USE_MSBUILD_SERVER": "0"}
+    with open(log, "w") as f:
+        try:
+            if not dn: why = "no dotnet in this image"
+            elif not nuget.is_dir(): why = f"no offline NuGet folder {nuget}"
+            elif not unpack_parts(tar, tmp / "src", CP_PARTS, f): why = f"cannot unpack {tar.name}"
+            else:
+                r = subprocess.run([dn, "build", "ContentPatcher/ContentPatcher.csproj", "-c", "Release", "--configfile", str(tmp / "NuGet.Config"),
+                                    f"-p:GamePath={layer}", "-p:EnableModDeploy=false", "-p:EnableModZip=true", f"-p:ModZipPath={tmp / 'zip'}",
+                                    "-p:UseSharedCompilation=false", "-nodeReuse:false",       # no compiler server / MSBuild node left
+                                    "-nologo", "-v:q", "-clp:NoSummary"], cwd=tmp / "src", env=env, stdin=subprocess.DEVNULL, stdout=f,
+                                   stderr=subprocess.STDOUT, timeout=900)
+                zips = sorted((tmp / "zip").glob("*.zip"))
+                if r.returncode != 0 or not zips: why = f"dotnet build failed (exit {r.returncode})"
+                else:
+                    with zipfile.ZipFile(zips[0]) as z: z.extractall(tmp / "Mods")
+                    if cp_installed(tmp) != ver: why = f"{zips[0].name} holds no {CP_DIR}/ContentPatcher.dll + manifest.json {ver}"
+        except (OSError, subprocess.SubprocessError, zipfile.BadZipFile) as e: why = f"{type(e).__name__}: {e}"
+    if why:
+        shutil.rmtree(tmp, ignore_errors=True)
+        return None, (f"Content Patcher {ver} was not installed ({why}; log {log}): content packs will not load, SMAPI C# mods work as "
+                      f"before. In your own game it is the mod from {CP_LINK}")
+    mods = layer / "Mods"; new = mods / f".ga-new-{CP_DIR}"; dst = mods / CP_DIR
+    shutil.rmtree(new, ignore_errors=True); shutil.copytree(tmp / "Mods" / CP_DIR, new)
+    if dst.exists() or dst.is_symlink(): shutil.rmtree(dst) if dst.is_dir() and not dst.is_symlink() else dst.unlink()
+    os.replace(new, dst); shutil.rmtree(tmp, ignore_errors=True)
+    return ver, f"Content Patcher {ver} built and installed ({round(time.time() - t0, 1)} s)"
+
+
+def ensure_cp(info=None):
+    """Content Patcher in an existing layer; its version into .ga-layer.json. -> the version or None."""
+    if pid_alive("smapi") and cp_installed(LAYER) != (cp_vendor() or [None])[0]:
+        say("the game is running: Content Patcher is added at the next `ga-sdv layer` after `ga-sdv stop`"); return cp_installed(LAYER)
+    ver, msg = install_cp(LAYER)
+    say(msg)
+    f = LAYER / ".ga-layer.json"
+    try: info = info if info is not None else json.loads(f.read_text())
+    except (OSError, ValueError): info = {}
+    if info.get("content_patcher") != ver: info["content_patcher"] = ver; f.write_text(json.dumps(info, indent=1))
+    return ver
+
+
+def layer(a):
+    b = game_build(GAME)
+    if b != "linux": die(f"/game: {b} build; " + {"none": "mount your Stardew Valley folder (-v <folder>:/game:ro)",
+                                                     "windows": "the sandbox runs the Linux build (download it with Steam in the sandbox)",
+                                                     "mac": "the sandbox runs the Linux build (download it with Steam in the sandbox)"}[b], 3)
+    if not writable(SANDBOX): die(f"{SANDBOX} is not writable: mount a volume there (-v ga-stardew:/sandbox)", 3)
+    if (LAYER / ".ga-layer.json").is_file() and not a.force:
+        say(f"layer {LAYER} already there (--force: build it again)"); ensure_cp(); return 0
+    if pid_alive("smapi"): die("the game is running: ga-sdv stop first")
+    shutil.rmtree(LAYER, ignore_errors=True); LAYER.mkdir(parents=True)
+    t0 = time.time(); copied = linked = 0
+    for e in sorted(os.scandir(GAME), key=lambda e: e.name):
+        n = e.name
+        if n in SKIPPED or n.startswith(SMAPI_FILES) or n.startswith("shared_memory_") or n.startswith(".ga-"): continue
+        src = Path(e.path)
+        if n == "StardewValley" and (GAME / "StardewValley-original").exists(): src = GAME / "StardewValley-original"   # SMAPI's launcher -> the game's own
+        if n in LINKED: os.symlink(GAME / n, LAYER / n); linked += 1; continue
+        if e.is_dir(follow_symlinks=False): shutil.copytree(src, LAYER / n, symlinks=True)
+        else: shutil.copy2(src, LAYER / n, follow_symlinks=False)
+        copied += 1
+    (LAYER / "Mods").mkdir()
+    smapi = install_smapi(LAYER)
+    if SAVES_IN.is_dir() and not SAVES.exists():
+        shutil.copytree(SAVES_IN, SAVES, symlinks=True, ignore=shutil.ignore_patterns("ErrorLogs"))
+    SAVES.mkdir(parents=True, exist_ok=True)
+    info = {"from": str(GAME), "made": time.strftime("%FT%TZ", time.gmtime()), "copied": copied, "linked": list(LINKED), "smapi": smapi,
+            "saves_from": str(SAVES_IN) if SAVES_IN.is_dir() else None, "seconds": round(time.time() - t0, 1)}
+    (LAYER / ".ga-layer.json").write_text(json.dumps(info, indent=1))
+    link_saves()
+    say(f"layer {LAYER}: {copied} entries copied, {', '.join(LINKED)} linked to {GAME} (read-only), {smapi} installed, Mods/ fresh "
+        f"({info['seconds']} s)")
+    ensure_cp(info)
+    return 0
+
+
+def link_saves():
+    """~/.config/StardewValley -> /sandbox/saves (the game writes its saves and settings there, never into /saves)."""
+    cfg = Path.home() / ".config" / "StardewValley"
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    if cfg.is_symlink() and os.readlink(cfg) == str(SAVES): return
+    if cfg.is_dir() and not cfg.is_symlink(): shutil.move(str(cfg), str(SANDBOX / f"config-before-{int(time.time())}"))
+    elif cfg.is_symlink(): cfg.unlink()
+    os.symlink(SAVES, cfg)
+
+
+# ---------------------------------------------------------------- processes (pid files, exact pids)
+def start(name, argv, log, env=None, shell=False):
+    RUN.mkdir(parents=True, exist_ok=True); LOGS.mkdir(parents=True, exist_ok=True)
+    if pid_alive(name): return pid_alive(name)
+    p = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=open(LOGS / log, "ab"), stderr=subprocess.STDOUT, start_new_session=True,
+                         env={**os.environ, **(env or {})}, shell=shell)
+    (RUN / f"{name}.pid").write_text(str(p.pid))
+    return p.pid
+
+
+def stop_pid(name, sig=signal.SIGTERM, wait=10):
+    pid = pid_alive(name)
+    if pid:
+        try: os.killpg(pid, sig)                 # its own session (start_new_session): the group is exactly what we started
+        except OSError:
+            try: os.kill(pid, sig)
+            except OSError: pass
+        for _ in range(wait * 4):
+            if not pid_alive(name): break
+            time.sleep(0.25)
+    (RUN / f"{name}.pid").unlink(missing_ok=True)
+    return pid
+
+
+def x_up():
+    return subprocess.run(["xdpyinfo", "-display", DISPLAY], capture_output=True).returncode == 0
+
+
+def up(a):
+    n = DISPLAY.lstrip(":")
+    lock = Path(f"/tmp/.X{n}-lock")
+    if not pid_alive("xvfb") and lock.exists():
+        lock.unlink(missing_ok=True); Path(f"/tmp/.X11-unix/X{n}").unlink(missing_ok=True)
+    start("xvfb", ["Xvfb", DISPLAY, "-screen", "0", SCREEN, "-nolisten", "tcp"], "xvfb.log")
+    for _ in range(60):
+        if x_up(): break
+        time.sleep(0.5)
+    else: die(f"no X display {DISPLAY}; see {LOGS / 'xvfb.log'}")
+    start("x11vnc", ["x11vnc", "-display", DISPLAY, "-rfbport", str(VNC_PORT), "-localhost", "-forever", "-shared", "-nopw", "-noxdamage", "-quiet"], "x11vnc.log")
+    start("websockify", ["websockify", "--web", "/usr/share/novnc", f"{VIEWER_BIND}:{VIEWER_PORT}", f"127.0.0.1:{VNC_PORT}"], "viewer.log")
+    if shutil.which("pulseaudio") and not pid_alive("pulse"):        # a silent sound card: the game and the recorder find one
+        os.makedirs("/tmp/ga-xdg", mode=0o700, exist_ok=True)
+        start("pulse", ["pulseaudio", "-n", "--daemonize=no", "--exit-idle-time=-1", "--load=module-null-sink sink_name=rec",
+                        "--load=module-native-protocol-unix auth-anonymous=1", "--load=module-always-sink"], "pulse.log", env={"XDG_RUNTIME_DIR": "/tmp/ga-xdg"})
+    say(f"display {DISPLAY} ({SCREEN}); viewer http://<this sandbox>:{VIEWER_PORT}/vnc.html")
+    return 0
+
+
+def oom_kills():
+    """How many processes the kernel killed for memory in this sandbox's cgroup (cgroup v2), and its limit in bytes (None = no limit)."""
+    ev, lim = Path("/sys/fs/cgroup/memory.events"), Path("/sys/fs/cgroup/memory.max")
+    try: n = int(next((l.split()[1] for l in ev.read_text().splitlines() if l.startswith("oom_kill ")), "0"))
+    except (OSError, ValueError): n = 0
+    try: v = lim.read_text().strip(); m = None if v == "max" else int(v)
+    except (OSError, ValueError): m = None
+    return n, m
+
+
+def run(a):
+    if not (LAYER / "StardewModdingAPI.dll").is_file(): die("no layer yet: ga-sdv layer")
+    if pid_alive("smapi"): say("the game is already running"); return 0
+    if not x_up(): up(a)
+    link_saves()
+    console = RUN / "console.in"; RUN.mkdir(parents=True, exist_ok=True); console.write_text("")
+    log = LOGS / "smapi.log"; log.write_text("")
+    slog = smapi_log(); slog.unlink(missing_ok=True)                # SMAPI writes its own log there (its console output may be off)
+    cmd = f"tail -n0 -F {console} 2>/dev/null | exec ./StardewModdingAPI"          # SMAPI's console reads stdin (ga-sdv console)
+    p = subprocess.Popen(x86(["bash", "-c", cmd]), cwd=LAYER, stdin=subprocess.DEVNULL, stdout=open(log, "ab"), stderr=subprocess.STDOUT,
+                         start_new_session=True, env={**os.environ, "DISPLAY": DISPLAY, "XDG_RUNTIME_DIR": "/tmp/ga-xdg", "PULSE_SINK": "rec",
+                                                       "TERM": "xterm", "SMAPI_NO_TERMINAL": "true"})
+    (RUN / "smapi.pid").write_text(str(p.pid))
+    say("starting Stardew Valley (SMAPI) ...")
+    kills0 = oom_kills()[0]
+    for _ in range(int(a.timeout)):
+        t = slog.read_text(errors="replace") if slog.exists() else ""
+        win = subprocess.run(["xdotool", "search", "--name", "^Stardew"], capture_output=True, text=True, env={**os.environ, "DISPLAY": DISPLAY}).stdout.split()
+        if "Type 'help' for help" in t and win:
+            for w in win: subprocess.run(["xdotool", "windowmove", w, "0", "0"], capture_output=True, env={**os.environ, "DISPLAY": DISPLAY})
+            break
+        if p.poll() is not None:
+            print(t[-3000:] or log.read_text(errors="replace")[-3000:])
+            kills, limit = oom_kills()
+            if kills > kills0:      # plain Docker --memory 700m, 2026-10-29: SMAPI "exited (code 137)" a few s after start, nothing else said
+                die(f"out of memory: the game was stopped by the system because this sandbox may use only "
+                    f"{f'{limit / 2**30:.1f} GB' if limit else 'a little'} (docker run --memory). Stardew Valley with SMAPI needs about "
+                    f"1.5 GB (measured peak 1.3-1.5 GB): create the sandbox again with --memory 4g. Your computer is not affected.")
+            die(f"SMAPI exited (code {p.returncode}); logs {slog}, {log}")
+        time.sleep(1)
+    else: die(f"no game window after {a.timeout} s; see {slog} and {log}")
+    for l in slog.read_text(errors="replace").splitlines():
+        if any(k in l for k in ("Loaded ", "mods", "ERROR", "Skipped", "M2W", "GameAnything")) and "TRACE" not in l: print("  " + l[:200])
+    say("game is up")
+    return 0
+
+
+def shot(a):
+    out = Path(a.file); out.parent.mkdir(parents=True, exist_ok=True)
+    r = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "x11grab", "-video_size", SCREEN.rsplit("x", 1)[0], "-i", DISPLAY,
+                        "-frames:v", "1", str(out)], capture_output=True, text=True)
+    if r.returncode != 0: die(f"screenshot failed: {r.stderr[-300:]}")
+    say(f"screenshot {out}"); return 0
+
+
+def rec(a):
+    d = SANDBOX / "rec"; d.mkdir(parents=True, exist_ok=True)
+    if a.what == "start":
+        if pid_alive("rec"): say("already recording"); return 0
+        f = d / time.strftime("%Y%m%d-%H%M%S.mkv")
+        audio = Path("/tmp/ga-xdg/pulse/native").exists()     # the game's sound from the `rec` sink's monitor (sandbox-hiccups.md #47)
+        start("rec", ["ffmpeg", "-loglevel", "error", "-y", "-thread_queue_size", "512", "-f", "x11grab", "-framerate", str(a.fps),
+                      "-video_size", SCREEN.rsplit("x", 1)[0], "-i", DISPLAY]
+              + (["-thread_queue_size", "512", "-f", "pulse", "-i", "rec.monitor"] if audio else [])
+              + ["-c:v", "mjpeg", "-q:v", "4"] + (["-c:a", "pcm_s16le"] if audio else []) + [str(f)], "rec.log", env={"XDG_RUNTIME_DIR": "/tmp/ga-xdg"})
+        (RUN / "rec.file").write_text(str(f)); say(f"recording {f}")
+    else:
+        f = (RUN / "rec.file").read_text() if (RUN / "rec.file").exists() else "?"
+        stop_pid("rec", signal.SIGINT); say(f"stopped: {f} (encode it on the host, e.g. ffmpeg -i <it> -c:v libx264 -crf 23 -pix_fmt yuv420p out.mp4)")
+    return 0
+
+
+def console(a):
+    if not pid_alive("smapi"): die("the game is not running")
+    with open(RUN / "console.in", "a") as f: f.write(" ".join(a.cmd) + "\n")
+    time.sleep(1.5); return log(argparse.Namespace(n=10))
+
+
+def smapi_log():
+    return SAVES / "ErrorLogs" / "SMAPI-latest.txt"
+
+
+def log(a):
+    p = smapi_log()
+    if not p.exists(): die("no SMAPI log yet")
+    print("\n".join(p.read_text(errors="replace").splitlines()[-a.n:])); return 0
+
+
+def stop(a):
+    stop_pid("rec", signal.SIGINT)
+    pid = stop_pid("smapi", wait=20)
+    say(f"game stopped (pid {pid})" if pid else "the game was not running")
+    if a.cmd == "down":
+        for n in ("websockify", "x11vnc", "pulse", "xvfb"): stop_pid(n)
+        say("screen and viewer stopped")
+    return 0
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="ga-sdv", description=__doc__.split("\n\n")[0])
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("doctor"); s.add_argument("--json", action="store_true"); s.set_defaults(f=doctor)
+    s = sub.add_parser("layer"); s.add_argument("--force", action="store_true"); s.set_defaults(f=layer)
+    sub.add_parser("up").set_defaults(f=up)
+    s = sub.add_parser("run"); s.add_argument("--timeout", type=int, default=180); s.set_defaults(f=run)
+    s = sub.add_parser("shot"); s.add_argument("file"); s.set_defaults(f=shot)
+    s = sub.add_parser("rec"); s.add_argument("what", choices=["start", "stop"]); s.add_argument("--fps", type=int, default=15); s.set_defaults(f=rec)
+    s = sub.add_parser("console"); s.add_argument("cmd", nargs="+"); s.set_defaults(f=console)
+    s = sub.add_parser("log"); s.add_argument("-n", type=int, default=40); s.set_defaults(f=log)
+    sub.add_parser("stop").set_defaults(f=stop); sub.add_parser("down").set_defaults(f=stop)
+    a = ap.parse_args(argv)
+    return a.f(a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- GameAnything smoke mod for No Man's Sky: an EXML patch intended for the current loose-file loader and awaiting a 7.06 real-game smoke.
+     It changes one text only: the subtitle of the Normal mode on the game-mode screen shows the smoke marker. Nothing else changes. -->
+<Data template="cTkLocalisationTable">
+  <Property name="Table">
+    <Property name="Table" value="TkLocalisationEntry" _id="GAMEMODE_NORMAL_SUBTITLE">
+      <Property name="English" value="[M2W-smoke] loaded - GameAnything smoke mod" />
+    </Property>
+  </Property>
+</Data>

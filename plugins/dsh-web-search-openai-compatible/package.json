@@ -1,0 +1,11 @@
+{
+  "name": "dsh-web-search-openai-compatible",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "DeepSeek Harness search provider: web_search asks a search-capable model behind any OpenAI-compatible chat completions API.",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/AetherLabsAI/GameAnything",
+  "main": "index.js",
+  "exports": "./index.js"
+}

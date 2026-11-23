@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Example buff: +1 Happy for 2 sim-hours. Copy a similar base-game buff (exported tuning) and change it. -->
+<I c="Buff" i="buff" m="buffs.buff" n="m2w_Buff_Hello">
+  <V t="enabled" n="_temporary_commodity_info">
+    <U n="enabled">
+      <T n="max_duration">120</T>
+    </U>
+  </V>
+  <T n="buff_name">{{str:m2w_buff_hello_name}}</T>
+  <T n="buff_description">{{str:m2w_buff_hello_desc}}</T>
+  <T n="icon">2f7d0004:00000000:69e51b33539ca3f6</T>
+  <T n="mood_type">14640</T>
+  <T n="mood_weight">1</T>
+  <T n="visible">True</T>
+</I>

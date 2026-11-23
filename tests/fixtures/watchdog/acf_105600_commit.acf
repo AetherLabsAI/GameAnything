@@ -1,0 +1,11 @@
+"AppState"
+{
+	"appid"		"105600"
+	"name"		"Terraria"
+	"StateFlags"		"1026"
+	"installdir"		"Terraria"
+	"BytesToDownload"		"797208576"
+	"BytesDownloaded"		"797208576"
+	"BytesToStage"		"797208576"
+	"BytesStaged"		"797208576"
+}

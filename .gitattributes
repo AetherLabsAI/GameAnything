@@ -1,0 +1,6 @@
+# Shell scripts stay LF: bash (Git Bash, WSL) cannot run CRLF scripts that a Windows checkout with core.autocrlf would make
+*.sh text eol=lf
+bin/gameanything text eol=lf
+# and batch files stay CRLF: cmd.exe can miss goto labels in LF-only files
+*.cmd text eol=crlf
+*.bat text eol=crlf

@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""ga-civ6: the Civilization VI sandbox tool inside the GameAnything Civ VI image (lab/images/civ6). Stdlib only.
+
+The image has NO game files. The user's own Civilization VI folder (Aspyr's Linux build: the Civ6 binary, steamassets/) is mounted
+READ-ONLY at /game, or downloaded with Steam in the sandbox (GA_GAME=<the Steam library's common/Sid Meier's Civilization VI>; Steam
+shows Take-Two's EULA after Install: the user accepts it). The game needs a running, logged-in Steam client (ga-steam start) and,
+to be playable, a GPU (--gpus all).
+
+    ga-civ6 doctor | layer [--force] | up | run | shot FILE | rec start|stop | log [-n N] | stop | down
+      layer        /sandbox/game: every entry of /game linked (23 GB, read-only), nothing copied: the game writes only to its user folder
+      run          ./Civ6 from the layer, wait for its window (3-6 minutes the first time)
+
+Mods are XML / Lua / SQL (nothing to compile): gameanything native build --game civ6 --install <mod> (GAMEANYTHING_CIV6_DIR=/sandbox/game).
+The Aspyr build takes its user folder from the account's home in /etc/passwd (~/.local/share/aspyr-media/Sid Meier's Civilization VI:
+Mods/, Saves/, Logs/), so the sandbox's home holds it, never the user's own folder.
+"""
+import os
+import sys
+from pathlib import Path
+
+# Civ VI opens its window at 80 % of the screen and draws its first-start 2K agreement for 720 px or more: on 1280x720 the window is
+# 1024x576 and the Agree button is cut off (plain Docker test, 2026-10-30). A 1600x900 screen gives a 1024x768 window that holds it.
+os.environ.setdefault("SCREEN", "1600x900x24")      # from a checkout; the image sets it in its Dockerfile (the base sets 1280x720)
+sys.path.insert(0, "/usr/local/lib/gameanything")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))      # running from a checkout
+import galab  # noqa: E402
+from galab import GAME, LAYER, LOGS  # noqa: E402
+
+APPID = "289070"
+USER_DIR = Path.home() / ".local" / "share" / "aspyr-media" / "Sid Meier's Civilization VI"
+
+
+def civ6_build(d: Path) -> str:
+    if (d / "Civ6").exists() and (d / "steamassets").is_dir(): return "linux"
+    if (d / "Base" / "Binaries" / "Win64Steam" / "CivilizationVI.exe").exists(): return "windows"
+    if any(d.glob("*.app")) or (d / "Contents" / "MacOS").is_dir(): return "mac"
+    return "none"
+
+
+class Civ6(galab.Lab):
+    name, title, window = "ga-civ6", "Civilization VI", "Civilization VI"
+    mount_hint = "mount your Civilization VI folder (the one with the Civ6 binary and steamassets/): -v <folder>:/game:ro"
+
+    def game_build(self): return civ6_build(GAME)
+
+    def build_hints(self):
+        return {"windows": "this is the Windows build; the sandbox runs Aspyr's Linux build (download it in the sandbox with Steam, or use native mode)",
+                "mac": "this is the Mac build; the sandbox runs Aspyr's Linux build (download it in the sandbox with Steam, or use native mode)"}
+
+    def make_layer(self):
+        LAYER.mkdir(parents=True, exist_ok=True); n = 0
+        for e in sorted(os.scandir(GAME), key=lambda e: e.name):
+            if e.name.startswith(".ga-") or e.name == "steamapps": continue
+            os.symlink(e.path, LAYER / e.name); n += 1
+        USER_DIR.mkdir(parents=True, exist_ok=True)
+        return {"linked": n, "user_dir": str(USER_DIR)}
+
+    def layer_ok(self): return (LAYER / ".ga-layer.json").is_file() and (LAYER / "Civ6").exists()
+    def log_file(self): return LOGS / "civ6.out"
+    def game_argv(self): return [str(LAYER / "Civ6")]
+    def game_env(self): return {"SteamAppId": APPID, "SteamGameId": APPID, "PULSE_SINK": "rec",
+                                "LD_LIBRARY_PATH": f"{LAYER}:{os.environ.get('LD_LIBRARY_PATH', '')}".rstrip(":")}
+    def doctor_extra(self): return {"steam_running": galab.steam_running(), "user_dir": str(USER_DIR)}
+
+    def cmd_run(self, a):
+        if not galab.steam_running(): self.say(f"Steam is not running in this sandbox: {self.title} needs it (ga-steam start, log in once)")
+        return super().cmd_run(a)
+
+
+if __name__ == "__main__":
+    sys.exit(Civ6().main(__doc__))

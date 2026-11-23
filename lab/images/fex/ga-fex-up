@@ -1,0 +1,20 @@
+#!/bin/sh
+# Start the sandbox screen (Xvfb :99 1280x720, openbox), the viewer (x11vnc + noVNC on 6080), a silent sound card (PulseAudio sink
+# "rec") and the Steam client under FEX; then stay up. The Steam home is /home/player (a volume: the login and games survive).
+set -u
+mkdir -p /tmp/ga-xdg /home/player/logs && chmod 700 /tmp/ga-xdg
+L=/home/player/logs
+# a container that was stopped keeps /tmp: the old Xvfb's lock then stops the new one ("Server is already active for display 99"),
+# and Steam exits with "Unable to open X11 display" (her Mac 2026-10-31, after `docker start`)
+if [ -e /tmp/.X99-lock ] && ! kill -0 "$(tr -d ' ' < /tmp/.X99-lock 2>/dev/null)" 2>/dev/null; then rm -f /tmp/.X99-lock /tmp/.X11-unix/X99; fi
+Xvfb :99 -screen 0 1280x720x24 -nolisten tcp >"$L/xvfb.log" 2>&1 &
+for i in $(seq 1 50); do xdpyinfo -display :99 >/dev/null 2>&1 && break; sleep 0.2; done
+openbox >"$L/openbox.log" 2>&1 &
+x11vnc -display :99 -rfbport 5900 -localhost -forever -shared -nopw -quiet >"$L/x11vnc.log" 2>&1 &
+websockify --web /usr/share/novnc 0.0.0.0:6080 127.0.0.1:5900 >"$L/novnc.log" 2>&1 &
+pulseaudio -n --daemonize=no --exit-idle-time=-1 --load="module-null-sink sink_name=rec" \
+  --load="module-native-protocol-unix auth-anonymous=1" --load=module-always-sink >"$L/pulse.log" 2>&1 &
+S=/home/player/.local/share/Steam
+if [ ! -x "$S/steam.sh" ]; then mkdir -p "$S" && tar xJf /opt/steam-bootstrap/bootstraplinux_ubuntu12_32.tar.xz -C "$S"; fi
+cd "$S" && dbus-launch --exit-with-session FEXBash -c "./steam.sh -no-cef-sandbox" >"$L/steam.log" 2>&1 &
+exec sleep infinity

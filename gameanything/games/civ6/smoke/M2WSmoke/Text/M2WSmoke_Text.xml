@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- In game (UpdateText in InGameActions): the World Tracker's research label, visible from turn 1. Text only: no rules, no save data. -->
+<GameData>
+  <LocalizedText>
+    <Replace Tag="LOC_WORLD_TRACKER_CHOOSE_RESEARCH" Language="en_US">
+      <Text>[M2W-smoke] loaded - Choose Research</Text>
+    </Replace>
+    <Replace Tag="LOC_HUD_CHOOSE_RESEARCH" Language="en_US">
+      <Text>[M2W-smoke] loaded - Choose Research</Text>
+    </Replace>
+  </LocalizedText>
+</GameData>

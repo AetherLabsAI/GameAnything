@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GameAnything · 形象确认</title>
+<style>
+:root { --bg:#f6f5f2; --panel:#fff; --ink:#222; --muted:#777; --line:#e3e0da; --accent:#3b6fd6; --ok:#2e9d5b; --warn:#d88a1c; --grass:#76966a; }
+* { box-sizing:border-box; }
+body { margin:0; font:14px/1.45 -apple-system, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; color:var(--ink); background:var(--bg); }
+header { display:flex; align-items:center; gap:12px; padding:8px 14px; background:var(--panel); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+header h1 { font-size:16px; margin:0; font-weight:600; }
+header a { color:var(--accent); text-decoration:none; }
+.sp { flex:1; }
+.hint { color:var(--muted); font-size:12px; }
+button, select, input { font:inherit; }
+button { border:1px solid var(--line); background:#fff; border-radius:6px; padding:3px 9px; cursor:pointer; }
+button:hover { border-color:var(--accent); }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+main { padding:12px; display:grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap:12px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; }
+.card.ok { border-color:var(--ok); }
+.card.change { border-color:var(--warn); }
+.top { display:flex; align-items:baseline; gap:8px; margin-bottom:6px; }
+.top b { font-size:15px; }
+.chip { background:#eef2fb; border-radius:10px; padding:0 8px; font-size:12px; }
+.row { display:flex; gap:10px; align-items:flex-start; }
+.photo { width:120px; height:120px; object-fit:cover; border-radius:6px; background:#ddd; }
+.portraits { display:flex; gap:4px; flex-wrap:wrap; max-width:200px; }
+.portraits figure { margin:0; text-align:center; font-size:11px; color:var(--muted); }
+.portraits img { width:96px; height:96px; image-rendering:pixelated; background:#deb887; border-radius:4px; display:block; }
+.noport { width:96px; height:96px; background:#eee; border-radius:4px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:12px; text-align:center; }
+canvas { image-rendering:pixelated; background:var(--grass); border-radius:6px; }
+details { margin-top:8px; }
+summary { cursor:pointer; color:var(--accent); font-size:13px; }
+.ctl { display:grid; grid-template-columns: 70px 1fr 70px 1fr; gap:4px 8px; align-items:center; margin-top:6px; font-size:13px; }
+.ctl input[type=color] { width:44px; height:22px; padding:0; border:1px solid var(--line); border-radius:4px; }
+.ctl select { font-size:12px; }
+.rev { display:flex; gap:6px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+.rev textarea { flex:1 1 100%; font:12px/1.4 inherit; border:1px solid var(--line); border-radius:5px; padding:3px 6px; min-height:34px; }
+.state { font-size:12px; }
+.pending { color:var(--warn); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="ttl">形象确认</h1>
+  <a href="/">← 首页</a> <a href="/people">人物标记</a> <a href="/play">试玩检查 →</a>
+  <span class="hint" id="prog"></span>
+  <span class="sp"></span>
+  <span class="hint">显示：</span>
+  <button data-f="all" class="on">全部</button><button data-f="todo">待看</button><button data-f="change">要改</button><button data-f="ok">满意</button>
+  <input id="q" placeholder="搜索名字 / 分组" style="padding:3px 7px;border:1px solid var(--line);border-radius:6px">
+</header>
+<div class="hint" style="padding:8px 14px 0">每人一张卡：参考照片 · 游戏头像 · 行走图（循环播放四个方向）。行走图的颜色和底子在“调整”里改，马上生效；
+头像要重新生成的话写下意见、点“请重新生成头像”（会把参考照片发给生图模型，确认后才发）。看完点“满意”或“要改”。</div>
+<main id="grid"></main>
+<script>
+const MAT = {hair:"头发", skin:"皮肤", eyes:"眼睛", top:"上衣", shirt:"衬衫", jacket:"外套", tie:"领带", bottom:"下装", skirt:"裙子", dress:"连衣裙",
+  pants:"裤子", shoes:"鞋", socks:"袜子", accent:"配饰", mustache:"胡子", glasses:"眼镜(原版)", bow:"发带", outline:"轮廓"};
+const EXPR = {neutral:"平静", happy:"开心", laugh:"大笑", touched:"感动", surprised:"惊讶", shy:"害羞"};
+const ST = {todo:"待看", ok:"满意", change:"要改"};
+let S = null, filter = "all", timers = {};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function load() { S = await (await fetch("/api/looks")).json(); render(); }
+function render() {
+  const q = $("q").value.trim();
+  const ps = S.people.filter(p => (filter === "all" || (p.review.status || "todo") === filter) && (!q || (p.name + p.groups.join(" ")).includes(q)));
+  const c = {todo: 0, ok: 0, change: 0}; S.people.forEach(p => c[p.review.status || "todo"]++);
+  $("prog").textContent = `${S.people.length} 人：满意 ${c.ok} · 要改 ${c.change} · 待看 ${c.todo}`;
+  $("grid").innerHTML = ps.map(card).join("");
+  ps.forEach(p => { animate(p); wire(p); });
+}
+function card(p) {
+  const lk = p.look, mats = materials(lk), st = p.review.status || "todo", pr = p.review.portrait_request;
+  return `<div class="card ${st}" id="c_${p.id}">
+    <div class="top"><b>${esc(p.name)}</b>${p.groups.map(g => `<span class="chip">${esc(g)}</span>`).join("")}${p.persona && p.persona.player ? `<span class="chip">玩家</span>` : ""}<span class="sp"></span><span class="state">${ST[st]}</span></div>
+    <div class="row">
+      ${p.photo ? `<img class="photo" src="${p.photo}" title="头像参考照片">` : `<div class="photo noport">没有参考照片</div>`}
+      <div class="portraits">${p.portraits.length ? p.portraits.map(x => `<figure><img src="${x.url}"><figcaption>${EXPR[x.expr] || x.expr}</figcaption></figure>`).join("") : `<div class="noport">头像还在生成</div>`}</div>
+      <canvas id="cv_${p.id}" width="${4 * 16 * 3 + 30}" height="${32 * 3}"></canvas>
+    </div>
+    <details><summary>调整行走图</summary>
+      <div class="ctl">
+        <span>上半身</span><select data-k="upper">${Object.keys(S.bases).map(b => `<option ${b === lk.upper ? "selected" : ""}>${b}</option>`).join("")}</select>
+        <span>下半身</span><select data-k="lower"><option value="">同上</option>${Object.keys(S.bases).map(b => `<option ${b === lk.lower ? "selected" : ""}>${b}</option>`).join("")}</select>
+        <span>切开行</span><input type="number" min="10" max="31" data-k="cut" value="${lk.cut || ""}" placeholder="（同一个底子不用）" style="width:80px">
+        <span>头发反差</span><input type="range" min="0.3" max="1.2" step="0.05" data-k="contrast_hair" value="${(lk.contrast || {}).hair || 1}">
+        ${mats.map(m => `<span>${MAT[m] || m}</span><input type="color" data-m="${m}" value="${(lk.colors || {})[m] || "#888888"}" ${(lk.colors || {})[m] ? "" : 'data-unset="1"'} title="${(lk.colors || {})[m] ? "" : "没设：保持原版颜色"}">`).join("")}
+        <span>眼镜</span><input type="checkbox" data-acc="glasses" ${hasAcc(lk, "glasses") ? "checked" : ""}>
+        <span>头纱</span><input type="checkbox" data-acc="veil" ${hasAcc(lk, "veil") ? "checked" : ""}>
+      </div>
+      <div class="hint" style="margin-top:4px">底子说明：${esc((S.bases[lk.upper] || {}).fit ? Object.values(S.bases[lk.upper].fit).join("；") : "")}</div>
+    </details>
+    <div class="rev">
+      <button data-st="ok">满意</button><button data-st="change">要改</button>
+      <button data-port="1" title="会把参考照片发给生图模型">请重新生成头像…</button>
+      ${pr && pr.state === "pending" ? `<span class="pending">已请求重新生成头像（等 GameAnything 处理）</span>` : ""}
+      <textarea placeholder="意见（比如：头发再长一点 / 笑得更自然 / 裙子是浅蓝色的）">${esc(p.review.note || "")}</textarea>
+    </div>
+  </div>`;
+}
+function materials(lk) {
+  const ms = new Set([...(S.bases[lk.upper] || {materials: []}).materials, ...(lk.lower ? (S.bases[lk.lower] || {materials: []}).materials : [])]);
+  const order = ["hair", "skin", "eyes", "jacket", "shirt", "top", "tie", "dress", "skirt", "pants", "bottom", "socks", "shoes", "bow", "accent", "mustache", "outline"];
+  return order.filter(m => ms.has(m)).concat([...ms].filter(m => !order.includes(m) && m !== "glasses"));
+}
+const hasAcc = (lk, t) => (lk.accessories || []).some(a => (a.type || a) === t);
+function animate(p) {
+  const cv = $("cv_" + p.id); if (!cv || !p.walk) return; const g = cv.getContext("2d"); g.imageSmoothingEnabled = false;
+  const img = new Image(); img.src = p.walk; let f = 0;
+  img.onload = () => { clearInterval(cv._t); cv._t = setInterval(() => { g.clearRect(0, 0, cv.width, cv.height);
+    for (let r = 0; r < 4; r++) g.drawImage(img, f * 16, r * 32, 16, 32, r * (16 * 3 + 10), 0, 16 * 3, 32 * 3); f = (f + 1) % 4; }, 180); };
+}
+function collect(p) {
+  const el = $("c_" + p.id), lk = {...p.look}, colors = {...(lk.colors || {})};
+  el.querySelectorAll("input[type=color]").forEach(i => { if (!i.dataset.unset) colors[i.dataset.m] = i.value; });
+  lk.colors = colors; lk.upper = el.querySelector("[data-k=upper]").value;
+  const lo = el.querySelector("[data-k=lower]").value; if (lo) lk.lower = lo; else delete lk.lower;
+  const cut = parseInt(el.querySelector("[data-k=cut]").value); if (lk.lower && cut) lk.cut = cut; else delete lk.cut;
+  const ch = parseFloat(el.querySelector("[data-k=contrast_hair]").value); lk.contrast = {...(lk.contrast || {}), hair: ch};
+  const acc = (lk.accessories || []).filter(a => !["glasses", "veil"].includes(a.type || a));
+  el.querySelectorAll("[data-acc]").forEach(i => { if (i.checked) acc.push((p.look.accessories || []).find(a => (a.type || a) === i.dataset.acc) || i.dataset.acc); });
+  if (acc.length) lk.accessories = acc; else delete lk.accessories;
+  return lk;
+}
+async function saveLook(p) {
+  const r = await fetch("/api/look", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({rev: S.rev, id: p.id, look: collect(p)})});
+  const j = await r.json();
+  if (j.ok) { S.rev = j.rev; p.look = collect(p); p.walk = j.walk; animate(p); }
+  else alert(j.error || "保存失败");
+}
+async function review(p, status, extra = {}) {
+  const note = $("c_" + p.id).querySelector("textarea").value;
+  await fetch("/api/review", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id: p.id, status, note, ...extra})});
+  p.review = {...p.review, status, note, ...(extra.portrait_request ? {portrait_request: {state: "pending"}} : {})}; render();
+}
+function wire(p) {
+  const el = $("c_" + p.id);
+  el.querySelectorAll(".ctl input, .ctl select").forEach(i => {
+    i.addEventListener(i.type === "color" || i.type === "range" ? "input" : "change", () => {
+      if (i.type === "color") delete i.dataset.unset;
+      clearTimeout(timers[p.id]); timers[p.id] = setTimeout(() => saveLook(p), 350); });
+  });
+  el.querySelectorAll("[data-st]").forEach(b => b.onclick = () => review(p, b.dataset.st));
+  el.querySelector("[data-port]").onclick = () => {
+    const note = el.querySelector("textarea").value.trim();
+    if (!note) { alert("先在意见框里写下想怎么改（比如：头发再长一点）"); return; }
+    if (!confirm(`请 GameAnything 重新生成“${p.name}”的头像？\n\n会把这个人的参考照片（脸部裁剪图）和你的意见发给生图模型 Seedream（通过 OpenRouter，字节跳动的模型），约 $0.035 / 张。\n确认后这条请求会交给 GameAnything 处理。`)) return;
+    review(p, "change", {portrait_request: true});
+  };
+}
+document.querySelectorAll("[data-f]").forEach(b => b.onclick = () => { filter = b.dataset.f; document.querySelectorAll("[data-f]").forEach(x => x.classList.toggle("on", x === b)); render(); });
+$("q").oninput = render;
+load();
+</script>
+</body>
+</html>

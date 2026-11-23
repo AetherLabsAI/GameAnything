@@ -1,0 +1,73 @@
+# Sid Meier's Civilization VI: a gameanything game package. How to fill it: skills/gameanything/references/add-a-game.md
+# Paths: one string, a list of candidates (the first that exists wins), or a per-system map {windows, mac, linux}; placeholders:
+# {home} {documents} {appdata} {localappdata} {xdg_data} {xdg_config} {game} (the install) {user} (folders.user) {mods}
+id: civ6
+title: Sid Meier's Civilization VI
+title_zh: 文明 6
+order: 90
+steam_appid: 289070
+engine: custom (Firaxis, Lua + SQL/XML)
+adapter: adapter:Civ6             # .modinfo checks, staging, the Mods.sqlite enabled switch
+pin_var: GAMEANYTHING_CIV6_DIR             # the install folder
+loader:
+  name: built-in (official mod support, Additional Content)
+  type: script
+  url: https://store.steampowered.com/app/289070/
+folders:
+  game:
+    marker:                       # the installs share no file: Linux (Aspyr) has the Civ6 binary + lower-case steamassets/
+      linux: [Civ6, steamassets/base]
+      windows: [Base/Binaries/Win64Steam/CivilizationVI.exe]
+      mac: [Civ6.app]
+  user:
+    windows: "{documents}/My Games/Sid Meier's Civilization VI"
+    linux: "{home}/.local/share/aspyr-media/Sid Meier's Civilization VI"   # the Aspyr build ignores XDG_DATA_HOME (and $HOME: it asks passwd)
+    # macOS (her Mac, 2026-10-29, Steam build 15296837): the game made <App Support>/Sid Meier's Civilization VI/Sid Meier's Civilization VI/Mods
+    # (+ ModUserData, HallofFame.sqlite) and scans that Mods/; its Logs/ and Mods.sqlite are under .../Firaxis Games/Sid Meier's Civilization VI
+    mac: "{home}/Library/Application Support/Sid Meier's Civilization VI/Sid Meier's Civilization VI"
+  mods: "{user}/Mods"              # one folder per mod with its .modinfo (Workshop mods live in Steam's workshop/content/289070: not touched)
+installed_when: game
+saves: ["{user}/Saves"]            # Single/, Multi/, Hotseat/, ... (local saves; the game's optional Steam Cloud saves are in Steam's userdata)
+extra_files:                        # the game's list of scanned mods and the enabled switch (it rebuilds it)
+  # Windows (a real Windows 11 PC, 2026-11-01): Documents/My Games/... holds only Mods/, ModUserData/, HallofFame.sqlite; Mods.sqlite
+  # and Logs/ are in %LOCALAPPDATA%/Firaxis Games/Sid Meier's Civilization VI (like macOS's Firaxis Games folder)
+  - {linux: "{user}/Mods.sqlite", windows: ["{localappdata}/Firaxis Games/Sid Meier's Civilization VI/Mods.sqlite", "{user}/Mods.sqlite"], mac: ["{user}/Mods.sqlite", "{home}/Library/Application Support/Sid Meier's Civilization VI/Firaxis Games/Sid Meier's Civilization VI/Mods.sqlite"]}
+mods_db: ["{user}/Mods.sqlite", "{localappdata}/Firaxis Games/Sid Meier's Civilization VI/Mods.sqlite",
+          "{home}/Library/Application Support/Sid Meier's Civilization VI/Firaxis Games/Sid Meier's Civilization VI/Mods.sqlite"]
+logs:
+  - {linux: "{user}/Logs/Lua.log", windows: "{localappdata}/Firaxis Games/Sid Meier's Civilization VI/Logs/Lua.log", mac: "{home}/Library/Application Support/Sid Meier's Civilization VI/Firaxis Games/Sid Meier's Civilization VI/Logs/Lua.log"}
+  - {linux: "{user}/Logs/Modding.log", windows: "{localappdata}/Firaxis Games/Sid Meier's Civilization VI/Logs/Modding.log", mac: "{home}/Library/Application Support/Sid Meier's Civilization VI/Firaxis Games/Sid Meier's Civilization VI/Logs/Modding.log"}
+process_names: {linux: [Civ6], windows: [CivilizationVI.exe, CivilizationVI_DX12.exe], mac: [Civ6_Exe, Civ6_Exe_Child]}   # macOS: Civ6.app/Contents/MacOS/*
+window_titles: ["Sid Meier's Civilization VI"]
+mac_click: hid                    # macOS (her Mac 2026-10-29): clicks and keys posted to the process did nothing (launcher PLAY, intro, menus)
+mac_keys: hid
+launch:
+  url: steam://rungameid/289070
+  hint: >-
+    Mods in the Mods folder are scanned when the game starts; current builds switch a new compatible mod on by themselves (an install
+    after that start confirms the switch in Mods.sqlite). The main menu's front-end parts show at once; the in-game parts load when a
+    single-player game starts (Single Player > Play Now or Create Game). Quitting from outside shows the game's "Are you sure?" box:
+    she clicks Yes (or uses Exit to Desktop). Test alone and offline: never take a test mod into a multiplayer game.
+toolchain: {kind: none, name: "none (Lua / XML / SQL are text)", purpose: "nothing to compile: Lua, XML and SQL are read by the game (an optional luac on PATH syntax-checks Lua)"}
+smoke: smoke/M2WSmoke
+lab:                              # gamebench hosting/launch_rt/civ6.sh on the Steam sandbox (wc-cities), guide hosting/modlab/civ6/rt/CLAUDE.md
+  supported: true
+  steam: true
+window:
+  how: 游戏里 选项 > 图像 > 全屏 关掉（选「窗口」），游戏会记住
+reload:
+  none: >-
+    文明 6 在开始一局游戏时读 mod 的游戏内部分：GameAnything 不能热重载。改了 mod 以后回到主菜单重新开一局（或者重开游戏）；把这一轮的改动攒在一起，开一次测完
+desc: 回合制策略，适合改编和功能项目：文明、领袖、单位、建筑、规则和界面的 mod（Lua 加 XML / SQL，不用编译）；在服务器的实验室沙箱里构建（截图和短录像）或装进你自己的游戏都可以做；只在单人离线游戏里测试
+desc_en: >-
+  Turn-based strategy, made for adaptation and feature projects: mods with civilizations, leaders, units, buildings, rules and
+  interface (Lua plus XML / SQL, nothing to compile); builds in the server lab sandbox (screenshots and short recordings) or in your own
+  game, tests in offline single-player games only
+tests: [tests/games/test_civ6.py]
+verified:                         # real round trips (evidence: _agent/logs/2026-10-28/civ6-smoke)
+- {system: linux, date: '2026-10-28', result: pass, how: "Civ VI 1.0.12.9 (Aspyr Linux) from real Steam in a lab sandbox as a player's PC; doctor, build, check, backup, install, gated launch, smoke label on the main menu and in the World Tracker of a Play Now game, close (her Yes on the quit box), restore byte-identical, uninstall"}
+- {system: mac, date: '2026-10-29', result: pass, how: "macOS 14.6 Apple Silicon (docs/cross-platform.md): MacCiv (Steam build 15296837, Aspyr launcher v1.4.6): build, check, install, launch, Warrior 99 and +500 gold in game, close"}
+- {system: windows, date: '2026-11-01', result: pass, how: "a real Windows 11 PC (x64, Steam, OneDrive Documents): doctor, build, check, backup, install into the OneDrive Documents, CivilizationVI.exe started directly (steam_appid.txt), M2WSmoke loaded with its front-end text in Modding.log (%LOCALAPPDATA%/Firaxis Games/.../Logs), close, uninstall"}
+sandbox:                          # the user's own Docker sandbox (gameanything/sandbox.py): the sandbox runs the Linux build: mount a Linux install, else download it with Steam
+  build: linux
+  three_d: true

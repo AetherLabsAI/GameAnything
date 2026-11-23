@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""ga-terraria: the Terraria (tModLoader) sandbox tool inside the GameAnything Terraria image (lab/images/terraria). Stdlib only.
+
+The image has NO game files. The user's own tModLoader folder (the free Steam app 1281930, Linux build: tModLoader.dll,
+start-tModLoader.sh) is mounted READ-ONLY at /game, or downloaded with Steam in the sandbox (GA_GAME=<the Steam library's
+common/tModLoader>). Terraria itself (105600) must be owned: tModLoader checks it through the running Steam client.
+
+    /game        the user's tModLoader folder, read-only                  docker run -v <folder>:/game:ro
+    /saves       optional: their tModLoader save folder (Players/, Worlds/), read-only (~/.local/share/Terraria/tModLoader)
+    /sandbox     writable: the game layer, the sandbox's own save folder (/sandbox/saves), logs, screenshots, recordings
+
+    ga-terraria doctor | layer [--force] | up | run | shot FILE | rec start|stop | log [-n N] | stop | down
+      layer        /sandbox/game: a copy of the tModLoader folder (about 170 MB; it writes its logs and its .NET runtime there), without
+                   the user's logs; /sandbox/saves: their Players/ and Worlds/ (never their Mods/: the sandbox starts without mods), and a
+                   config.json with the language and the tModLoader version (no first-start language picker or Welcome)
+      run          start tModLoader with -tmlsavedirectory /sandbox/saves (Steam must be running: ga-steam start), wait for the menu
+
+Mods: tModLoader builds them itself (gameanything native build --game terraria --install <mod>; GAMEANYTHING_TERRARIA_DIR=/sandbox/game and GAMEANYTHING_TERRARIA_USER_DIR=/sandbox/saves are set in the image: the mod goes to /sandbox/saves/Mods, the folder the game reads).
+"""
+import json
+import re
+import shutil
+import sys
+from pathlib import Path
+
+sys.path.insert(0, "/usr/local/lib/gameanything")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))      # running from a checkout
+import galab  # noqa: E402
+from galab import GAME, LAYER, SANDBOX, SAVES_IN, copy_entries  # noqa: E402
+
+SAVES = SANDBOX / "saves"
+SKIPPED = ("tModLoader-Logs", "steamapps", "dotnet_installed")
+APPID = "1281930"
+
+
+def tml_build(d: Path) -> str:
+    if (d / "tModLoader.dll").is_file() and (d / "start-tModLoader.sh").exists(): return "linux"   # the same .NET build runs everywhere
+    if (d / "tModLoader.dll").is_file(): return "linux"
+    if (d / "Terraria.exe").exists() or (d / "Terraria.app").exists(): return "windows" if (d / "Terraria.exe").exists() else "mac"
+    return "none"
+
+
+def tml_version(dll: Path):
+    """tModLoader's own version from tModLoader.dll's ProductVersion ("1.4.4.9+2026.08.3.0|2026.08|stable|..." -> "2026.8.3.0"), or None."""
+    try: data = dll.read_bytes()
+    except OSError: return None
+    m = re.search("ProductVersion".encode("utf-16-le") + rb"\x00\x00((?:[^\x00]\x00)+)", data)
+    v = re.search(r"\+(\d+(?:\.\d+){1,3})", m.group(1).decode("utf-16-le")) if m else None
+    return ".".join(str(int(x)) for x in v.group(1).split(".")) if v else None
+
+
+def seed_config(saves: Path, game: Path):
+    """A save folder without config.json opens on "Select language", then tModLoader's first-launch Welcome: run waited 420 s on them
+    (plain Docker test, 2026-10-30). The language and the version last launched skip both; the game fills in the rest."""
+    cfg = saves / "config.json"
+    if cfg.exists(): return None
+    seed = {"Language": "en-US"}
+    ver = tml_version(game / "tModLoader.dll")
+    if ver: seed["LastLaunchedTModLoaderVersion"] = ver
+    cfg.write_text(json.dumps(seed, indent=2) + "\n", encoding="utf-8")
+    return seed
+
+
+class Terraria(galab.Lab):
+    name, title, window = "ga-terraria", "tModLoader", "^(tModLoader|Terraria)"
+    mount_hint = "mount your tModLoader folder (the one with tModLoader.dll): -v <folder>:/game:ro"
+
+    def game_build(self): return tml_build(GAME)
+
+    def build_hints(self):
+        return {"windows": "this is Terraria, not tModLoader: mount the tModLoader folder (Steam app 1281930), or download it in the sandbox",
+                "mac": "this is the Mac Terraria app: mount the tModLoader folder, or download it with Steam in the sandbox"}
+
+    def make_layer(self):
+        copied, _ = copy_entries(GAME, LAYER, skip=lambda n: n in SKIPPED)
+        for f in LAYER.glob("*.sh"): f.chmod(0o755)
+        SAVES.mkdir(parents=True, exist_ok=True)
+        took = []
+        for sub in ("Players", "Worlds"):
+            if (SAVES_IN / sub).is_dir() and not (SAVES / sub).exists():
+                shutil.copytree(SAVES_IN / sub, SAVES / sub, symlinks=True); took.append(sub)
+        return {"copied": copied, "saves": took, "config": seed_config(SAVES, LAYER)}
+
+    def layer_ok(self): return (LAYER / ".ga-layer.json").is_file() and (LAYER / "tModLoader.dll").is_file()
+    def log_file(self): return LAYER / "tModLoader-Logs" / "client.log"
+    def game_argv(self):
+        # start-tModLoader.sh runs LaunchUtils/ScriptCaller.sh in the background and returns at once (the 2026 Steam build): the pid we
+        # watch would be gone while the game starts ("the game exited"). ScriptCaller.sh cd's to its folder and ends in exec dotnet.
+        sc = LAYER / "LaunchUtils" / "ScriptCaller.sh"
+        return ["bash", str(sc if sc.is_file() else LAYER / "start-tModLoader.sh"), "-tmlsavedirectory", str(SAVES)]
+    def game_env(self): return {"SteamAppId": APPID, "SteamGameId": APPID, "PULSE_SINK": "rec"}
+    # "Mods using the most RAM" comes only with mods enabled; "Mod Load Completed" ends every start (the window is checked too)
+    def ready(self, text): return any(k in text for k in ("Mods using the most RAM", "Entering world", "Main Menu", "Mod Load Completed"))
+    def interesting(self, l): return any(k in l for k in ("M2W", "Disabling Mod", "error occurred", "Steam"))
+    def doctor_extra(self): return {"steam_running": galab.steam_running(), "saves": str(SAVES)}
+
+    def cmd_run(self, a):
+        if not galab.steam_running(): self.say("Steam is not running in this sandbox: tModLoader needs it (ga-steam start, log in once)")
+        return super().cmd_run(a)
+
+
+if __name__ == "__main__":
+    sys.exit(Terraria().main(__doc__))

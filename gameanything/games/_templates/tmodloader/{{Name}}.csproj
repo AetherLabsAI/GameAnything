@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Keep this Import first: tModLoader looks for it (and writes ModSources/tModLoader.targets); `m2w native build` writes its own -->
+  <Import Project="..\tModLoader.targets" />
+  <PropertyGroup>
+    <AssemblyName>{{Name}}</AssemblyName>
+  </PropertyGroup>
+</Project>

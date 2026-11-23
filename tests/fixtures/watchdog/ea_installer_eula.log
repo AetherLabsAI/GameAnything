@@ -1,0 +1,3 @@
+[00DC:00E0][2026-10-29T19:10:55]i100: Detect begin, 1 packages
+[00DC:00E0][2026-10-29T19:10:55]i101: Detected package: EAapp_13.813.1.6327_d5ea2a1ad_6d16299b_16195906.msi, state: Absent, cached: None
+[00DC:00E0][2026-10-29T19:10:55]i199: Detect complete, result: 0x0

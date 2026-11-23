@@ -1,0 +1,2 @@
+VERSION = "0.1.12"
+PROTOCOL = "wcp/0.1"

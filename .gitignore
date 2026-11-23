@@ -1,0 +1,19 @@
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+# user data never goes in this repo
+projects/
+packs/
+*.HEIC
+*.heic
+*.MP4
+*.mp4
+# design prototypes are built from one user's real photos and words: they live with that project's data, not in git
+gameanything/ui/static/design*.html
+build/
+# the wheel's copy of skills/ + AGENTS.md (setup.py builds it under build/; never in the source tree)
+gameanything/_bundle/
+
+# maintainers' own lab / hub notes: never in the public repository (internal_docs.py reads them when present)
+/internal/

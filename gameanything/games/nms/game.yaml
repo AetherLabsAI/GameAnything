@@ -1,0 +1,57 @@
+# No Man's Sky: a gameanything game package. How to fill it: skills/gameanything/references/add-a-game.md
+# Paths: one string, a list of candidates (the first that exists wins), or a per-system map {windows, mac, linux}; placeholders:
+# {home} {documents} {appdata} {localappdata} {xdg_data} {xdg_config} {game} (the install) {user} (folders.user) {mods}
+id: nms
+title: No Man's Sky
+title_zh: 无人深空
+order: 100
+steam_appid: 275850
+engine: custom (Hello Games, MBIN / MXML data)
+adapter: adapter:Nms              # Proton prefix on Linux, DISABLEMODS.TXT aside, EXML / MBIN layout checks
+pin_var: GAMEANYTHING_NMS_DIR              # the install folder (the one with Binaries/ and GAMEDATA/)
+loader:
+  name: built-in (GAMEDATA/MODS loose EXML / MBIN loader; checked against Windows build 25732212 / game 7.06)
+  type: other
+  url: https://www.nomanssky.com/
+  fix: 不用装 mod 加载器：游戏自己加载 GAMEDATA/MODS 里的 mod。找不到 GAMEDATA/PCBANKS 就在 Steam 里「验证游戏文件的完整性」
+  fix_en: "No mod loader to install for loose-file mods: the game loads GAMEDATA/MODS itself. If GAMEDATA/PCBANKS is missing, use Steam's Verify integrity of game files"
+  check: ["{game}/GAMEDATA/PCBANKS"]
+folders:
+  game: {marker: Binaries/NMS.exe}  # Windows build (Proton on Linux); macOS is not supported until its different native layout is verified
+  user:
+    windows: "{appdata}/HelloGames/NMS"
+    linux: "<Steam library>/steamapps/compatdata/275850/pfx/drive_c/users/steamuser/AppData/Roaming/HelloGames/NMS (adapter.py: Proton)"
+    mac: "{home}/Library/Application Support/HelloGames/NMS"  # save path only; the current Binaries/NMS.exe marker intentionally rejects a Mac install
+  mods: "{game}/GAMEDATA/MODS"     # one folder per mod, vanilla folder structure inside (EXML patches, MBIN replacements, LocTable.MXML)
+saves: ["{user}"]                  # st_<steamid>/save*.hg + mf_save*.hg (and the other folders the game keeps there)
+extra_files: ["{game}/Binaries/SETTINGS/GCMODSETTINGS.MXML"]   # the game's own list of mods (order, enabled): written by the game
+logs: ["{game}/Binaries/SETTINGS/GCMODSETTINGS.MXML"]          # the game writes no mod log: this file lists the mods it found
+process_names: {linux: [NMS.exe], windows: [NMS.exe], mac: ["No Man's Sky"]}
+window_titles: ["No Man's Sky"]
+launch:
+  url: steam://rungameid/275850
+  hint: >-
+    Linux: the game runs through Proton (Steam > the game > Properties > Compatibility, or Steam's default). Mods load by themselves
+    from GAMEDATA/MODS; the game shows a "mods installed" notice at start. Test OFFLINE and alone: look at the main menu, or use a
+    throwaway local save with Options > Network > network play off; never join other players or a shared session with a test mod.
+    Saves sync through Steam Cloud by default: m2w backs up the local save folder only.
+toolchain: {kind: none, purpose: "nothing to compile: the game applies EXML patches itself (HGPAKtool + MBINCompiler only to look up vanilla data)"}
+smoke: smoke/M2WSmoke
+lab:
+  supported: false                # no gamebench lab for No Man's Sky: native only
+window:
+  how: 游戏里 选项 > 图像 > 显示模式 选「窗口」或「无边框窗口」（不要独占全屏），游戏会记住
+reload:
+  none: >-
+    无人深空的 mod 在游戏启动时加载：m2w 不能热重载。（游戏有一个只对部分 GLOBALS 数值有效的 HotReloadModGlobals 调试开关，靠切出再切回窗口触发，
+    m2w 不用它。）关掉游戏、install 新版本、再开一次；把这一轮的改动攒在一起，开一次测完
+desc: 太空探索和生存建造，适合功能和改编项目：数值、文字、物品和界面的 mod（EXML 补丁，不用编译）；构建和装进你自己的游戏可以做，只离线单人测试，试玩录像还没接入
+desc_en: >-
+  Space exploration and survival building, made for feature and adaptation projects: mods that change values, texts, items and the
+  interface (EXML patches, nothing to compile); builds and installing into your own game work, tests offline and single-player only,
+  playthrough videos are not connected yet
+tests: [tests/games/test_nms.py]
+verified:                         # [{system: linux, date: YYYY-MM-DD, result: pass, how: ...}] after a real round trip
+- {system: windows, date: '2026-11-01', result: pass, how: "a real Windows 11 PC (x64, Steam, OneDrive Documents): doctor, build, check, backup, install, Steam launch, M2WSMOKE listed in GCMODSETTINGS.MXML, close, uninstall"}
+sandbox:
+  offered: false                  # not in the sandbox wizard (decided 2026-10-29): native only
