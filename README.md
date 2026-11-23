@@ -31,7 +31,7 @@
 </p>
 
 <!-- DEMO:G1 hero, 8-grid (4x2), 1600 px wide: Dream of the Red Chamber, Harry Potter, And Then There Were None (Minecraft) · San Diego (Cities: Skylines) · Hong Kong food (Overcooked! 2) · PhD (Slay the Spire) · a wedding (Stardew Valley) · a hot spring (Valheim) -->
-<p align="center"><img src="https://github.com/user-attachments/assets/13b340e6-629d-4159-b393-91c09eec1d68" alt="Eight projects, eight worlds" width="100%"></p>
+<p align="center"><img src="https://github.com/user-attachments/assets/9141001d-d043-43cf-98b3-775e970ac5fe" alt="Eight projects, eight worlds" width="100%"></p>
 
 Give your coding agent a folder of photos, a novel or a film, and say what you want. GameAnything turns it into a mod for a game
 you already own: the places, the people, the story. You never write code. You talk to the agent in a local web page, pick from
@@ -42,19 +42,19 @@ the cards it shows you, watch the playtest video, and say what to change. The ag
 <!-- DEMO:G2a novel -> target picture -> game (Dream of the Red Chamber, same camera angle) -->
 <table>
 <tr><th width="33%">Your material</th><th width="67%">What it became in the game</th></tr>
-<tr><td valign="top"><img src="https://github.com/user-attachments/assets/ba863d4d-686c-4d8f-89a2-e28ea9e604d0" alt="A novel" width="100%"><br>
-<b>A novel.</b> One line from <i>Dream of the Red Chamber</i> becomes the Grand View Garden in Minecraft.</td><td valign="top"><img src="https://github.com/user-attachments/assets/414d67a0-89f8-4f45-b557-0a7cc2b979e8" alt="Dream of the Red Chamber in Minecraft" width="100%"></td></tr>
-<tr><td valign="top"><img src="https://github.com/user-attachments/assets/ca36fda4-53d6-4d27-b13f-2d5f2fa6cb68" alt="Your photos" width="100%"><br>
-<b>A real place.</b> San Diego, the city of a memory, rebuilt in Cities: Skylines.<br><sub>Balboa Park photo: Christian David, Wikimedia Commons, CC BY-SA 4.0</sub></td><td valign="top"><img src="https://github.com/user-attachments/assets/b7234da8-044f-42f6-bfa4-1956c130d1d2" alt="San Diego in Cities: Skylines" width="100%"></td></tr>
-<tr><td valign="top"><img src="https://github.com/user-attachments/assets/cd67b4b7-cdf2-4834-87cd-e3d8ddd76685" alt="A film" width="100%"><br>
-<b>A film.</b> <i>Harry Potter</i>: from film scenes to the same places in Minecraft.</td><td valign="top"><img src="https://github.com/user-attachments/assets/321f470a-737b-4756-9610-76b726811a51" alt="Hogwarts in Minecraft" width="100%"></td></tr>
+<tr><td valign="top"><img src="https://github.com/user-attachments/assets/10e5500c-8b60-4106-af51-e6b358390222" alt="A novel" width="100%"><br>
+<b>A novel.</b> One line from <i>Dream of the Red Chamber</i> becomes the Grand View Garden in Minecraft.</td><td valign="top"><img src="https://github.com/user-attachments/assets/cebd2e2a-ef23-4a6e-81fa-3a2a57429432" alt="Dream of the Red Chamber in Minecraft" width="100%"></td></tr>
+<tr><td valign="top"><img src="https://github.com/user-attachments/assets/5944d70a-d767-4b9e-acfe-a2043e170afc" alt="Your photos" width="100%"><br>
+<b>A real place.</b> San Diego, the city of a memory, rebuilt in Cities: Skylines.<br><sub>Balboa Park photo: Christian David, Wikimedia Commons, CC BY-SA 4.0</sub></td><td valign="top"><img src="https://github.com/user-attachments/assets/825c3b32-bbdb-486c-84a3-431d89d46af0" alt="San Diego in Cities: Skylines" width="100%"></td></tr>
+<tr><td valign="top"><img src="https://github.com/user-attachments/assets/6870e4f9-5391-4562-8376-320194bff63b" alt="A film" width="100%"><br>
+<b>A film.</b> <i>Harry Potter</i>: from film scenes to the same places in Minecraft.</td><td valign="top"><img src="https://github.com/user-attachments/assets/126ccadb-c991-42ae-9665-8a7b609092e2" alt="Hogwarts in Minecraft" width="100%"></td></tr>
 </table>
 
 ## How it works
 
 Open your agent in a terminal and say one sentence, like the ones in the [examples](#examples). From then on everything happens in the browser.
 
-<table><tr><td width="55%"><img src="https://github.com/user-attachments/assets/9ae62180-e461-477d-90c4-a6f56cfc650f" alt="The web page, step by step" width="100%"></td><td>
+<table><tr><td width="55%"><img src="https://github.com/user-attachments/assets/49f12657-e1d9-452b-ae86-67cf68cc3bf2" alt="The web page, step by step" width="100%"></td><td>
 
 1. **Drop in your material.** Photos, videos, a novel, a film. It stays on your computer.
 2. **Pick what matters.** The agent shows the people, places and scenes it found as cards; you choose.
@@ -89,14 +89,14 @@ not yet or broken. Things that worked before are checked again so they don't bre
 
 | BEFORE | ROUND 1 | ROUND 3 |
 |:--:|:--:|:--:|
-| <img src="https://github.com/user-attachments/assets/b14ae798-59a2-473d-b6c6-da97c8ac93e5" alt="Before" width="300"> | <img src="https://github.com/user-attachments/assets/b858ffc3-1f8f-400d-94d3-9281ab769f8d" alt="Round 1" width="300"> | <img src="https://github.com/user-attachments/assets/994a9e25-eaa4-40da-9708-ae8b219494b2" alt="Round 3" width="300"> |
+| <img src="https://github.com/user-attachments/assets/b02d7e42-73a1-48a9-bcac-80aa09b1b6e7" alt="Before" width="300"> | <img src="https://github.com/user-attachments/assets/c79a6fb0-728f-4e2f-bd2f-58c95108a1c6" alt="Round 1" width="300"> | <img src="https://github.com/user-attachments/assets/d35156bc-50ab-4526-8f3b-6d591dea309d" alt="Round 3" width="300"> |
 
 <!-- DEMO:G5 sped-up clip of the agent playtesting -->
 **It builds itself, from empty land (sped up)**
 
 | Dream of the Red Chamber · Minecraft | Hogwarts · Minecraft | And Then There Were None · Minecraft |
 |:--:|:--:|:--:|
-| <img src="https://github.com/user-attachments/assets/f490c377-73d9-4e61-9265-cf595cc3a45f" alt="Grand View Garden build" width="300"> | <img src="https://github.com/user-attachments/assets/d785e955-4301-4d7d-b826-f947c04a6490" alt="Hogwarts build" width="300"> | <img src="https://github.com/user-attachments/assets/f52af075-c7a5-4ead-8c5c-c153dcd1e12f" alt="And Then There Were None build" width="300"> |
+| <img src="https://github.com/user-attachments/assets/b6a184c7-6d63-4aec-a1f1-623a1f24cb91" alt="Grand View Garden build" width="300"> | <img src="https://github.com/user-attachments/assets/35b9c736-d879-42ad-a103-e7dd22bb886c" alt="Hogwarts build" width="300"> | <img src="https://github.com/user-attachments/assets/96dcd53b-9690-4eb3-89af-0b3f69111e19" alt="And Then There Were None build" width="300"> |
 
 ## It gets better with every round, and every project
 
@@ -112,7 +112,7 @@ against them: *would you say this again?* The goal is simple: the same note neve
 
 ## Watch it work
 
-<table><tr><td width="42%"><img src="https://github.com/user-attachments/assets/8cced8ef-3ac0-46cf-8493-a36919f68c45" alt="The workbench" width="100%"></td><td>A live card in the chat shows what the builder is doing right now (<i>compiling the mod</i>, <i>taking screenshots in the game</i>, <i>waiting for the game to start</i>), the round, the time used against the estimate, and the newest screenshots.<br><br>If something stalls or a usage limit is hit, you see it there. <b>Open the work view</b> for the timeline, and, once you agree, a live view-only picture of the game.</td></tr></table>
+<table><tr><td width="42%"><img src="https://github.com/user-attachments/assets/9a745b15-05c2-4809-bbd6-c43b0d8e1204" alt="The workbench" width="100%"></td><td>A live card in the chat shows what the builder is doing right now (<i>compiling the mod</i>, <i>taking screenshots in the game</i>, <i>waiting for the game to start</i>), the round, the time used against the estimate, and the newest screenshots.<br><br>If something stalls or a usage limit is hit, you see it there. <b>Open the work view</b> for the timeline, and, once you agree, a live view-only picture of the game.</td></tr></table>
 
 ## Four modes
 
@@ -440,7 +440,7 @@ Agents also keep a lessons file per game (what worked, what broke). <!-- TODO: s
 
 ## Privacy & safety
 
-<table><tr><td><ul><li><b>Local first.</b> Your files are only read, never changed, and projects live in your own data folder.</li><li><b>Nothing is sent without asking.</b> Before any photo or text goes to a model, you get a permission card. Every request that sent your content anywhere is written to the project's privacy ledger.</li><li><b>No made-up facts about real people.</b> Lines the agent drafts for real people are marked as drafts until you confirm them.</li><li><b>Your saves are safe.</b> Saves and mod folders are backed up before anything changes, and every install can be restored and uninstalled.</li><li><b>Sandboxed builds.</b> Sandbox builds run in an isolated Docker container. In native mode the agent asks before it starts your game and only closes the game it started.</li></ul></td><td width="34%"><img src="https://github.com/user-attachments/assets/07e21bea-2e92-46aa-aa77-8bfe50bcebc5" alt="A permission card" width="100%"></td></tr></table>
+<table><tr><td><ul><li><b>Local first.</b> Your files are only read, never changed, and projects live in your own data folder.</li><li><b>Nothing is sent without asking.</b> Before any photo or text goes to a model, you get a permission card. Every request that sent your content anywhere is written to the project's privacy ledger.</li><li><b>No made-up facts about real people.</b> Lines the agent drafts for real people are marked as drafts until you confirm them.</li><li><b>Your saves are safe.</b> Saves and mod folders are backed up before anything changes, and every install can be restored and uninstalled.</li><li><b>Sandboxed builds.</b> Sandbox builds run in an isolated Docker container. In native mode the agent asks before it starts your game and only closes the game it started.</li></ul></td><td width="34%"><img src="https://github.com/user-attachments/assets/351259ae-aefc-4741-b8da-8f70d39bfe03" alt="A permission card" width="100%"></td></tr></table>
 
 ## Benchmark
 

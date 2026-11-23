@@ -31,7 +31,7 @@
 </p>
 
 <!-- DEMO:G1 八宫格 4×2，宽 1600 px：红楼梦、哈利波特、无人生还（Minecraft）· 圣地亚哥（城市：天际线）· 香港美食（胡闹厨房 2）· 读博（杀戮尖塔）· 婚礼（星露谷）· 雪中温泉（英灵神殿） -->
-<p align="center"><img src="https://github.com/user-attachments/assets/13b340e6-629d-4159-b393-91c09eec1d68" alt="Eight projects, eight worlds" width="100%"></p>
+<p align="center"><img src="https://github.com/user-attachments/assets/9141001d-d043-43cf-98b3-775e970ac5fe" alt="Eight projects, eight worlds" width="100%"></p>
 
 把一个文件夹的照片、一本小说或一部电影交给你的编程 agent，说你想做什么。GameAnything 会把它做成你已有游戏里的一个 mod：地方、人物、故事都在里面。
 你不用写代码：在本地网页上和 agent 聊天，点选它发来的卡片，看试玩录像，说哪里要改。agent 自己构建、自己试玩、自己修，一版比一版好。
@@ -41,19 +41,19 @@
 <!-- DEMO:G2a 小说原文 → 目标图 → 游戏（红楼梦，同一角度） -->
 <table>
 <tr><th width="33%">你的素材</th><th width="67%">它在游戏里变成了什么</th></tr>
-<tr><td valign="top"><img src="https://github.com/user-attachments/assets/ba863d4d-686c-4d8f-89a2-e28ea9e604d0" alt="A novel" width="100%"><br>
-<b>一本小说</b>：《红楼梦》里的一句话，变成 Minecraft 里的大观园。</td><td valign="top"><img src="https://github.com/user-attachments/assets/414d67a0-89f8-4f45-b557-0a7cc2b979e8" alt="Dream of the Red Chamber in Minecraft" width="100%"></td></tr>
-<tr><td valign="top"><img src="https://github.com/user-attachments/assets/ca36fda4-53d6-4d27-b13f-2d5f2fa6cb68" alt="Your photos" width="100%"><br>
-<b>一个真实的地方</b>：圣地亚哥，一段回忆里的城市，在《城市：天际线》里重建。<br><sub>Balboa Park 照片：Christian David，Wikimedia Commons，CC BY-SA 4.0</sub></td><td valign="top"><img src="https://github.com/user-attachments/assets/b7234da8-044f-42f6-bfa4-1956c130d1d2" alt="San Diego in Cities: Skylines" width="100%"></td></tr>
-<tr><td valign="top"><img src="https://github.com/user-attachments/assets/cd67b4b7-cdf2-4834-87cd-e3d8ddd76685" alt="A film" width="100%"><br>
-<b>一部电影</b>：《哈利波特》，从电影画面到 Minecraft 里同样的地方。</td><td valign="top"><img src="https://github.com/user-attachments/assets/321f470a-737b-4756-9610-76b726811a51" alt="Hogwarts in Minecraft" width="100%"></td></tr>
+<tr><td valign="top"><img src="https://github.com/user-attachments/assets/10e5500c-8b60-4106-af51-e6b358390222" alt="A novel" width="100%"><br>
+<b>一本小说</b>：《红楼梦》里的一句话，变成 Minecraft 里的大观园。</td><td valign="top"><img src="https://github.com/user-attachments/assets/cebd2e2a-ef23-4a6e-81fa-3a2a57429432" alt="Dream of the Red Chamber in Minecraft" width="100%"></td></tr>
+<tr><td valign="top"><img src="https://github.com/user-attachments/assets/5944d70a-d767-4b9e-acfe-a2043e170afc" alt="Your photos" width="100%"><br>
+<b>一个真实的地方</b>：圣地亚哥，一段回忆里的城市，在《城市：天际线》里重建。<br><sub>Balboa Park 照片：Christian David，Wikimedia Commons，CC BY-SA 4.0</sub></td><td valign="top"><img src="https://github.com/user-attachments/assets/825c3b32-bbdb-486c-84a3-431d89d46af0" alt="San Diego in Cities: Skylines" width="100%"></td></tr>
+<tr><td valign="top"><img src="https://github.com/user-attachments/assets/6870e4f9-5391-4562-8376-320194bff63b" alt="A film" width="100%"><br>
+<b>一部电影</b>：《哈利波特》，从电影画面到 Minecraft 里同样的地方。</td><td valign="top"><img src="https://github.com/user-attachments/assets/126ccadb-c991-42ae-9665-8a7b609092e2" alt="Hogwarts in Minecraft" width="100%"></td></tr>
 </table>
 
 ## 怎么运作
 
 在终端里打开你的 agent，说一句话就行（像[例子](#例子)里那样），之后的事都在网页上完成。
 
-<table><tr><td width="55%"><img src="https://github.com/user-attachments/assets/9ae62180-e461-477d-90c4-a6f56cfc650f" alt="网页操作，一步一步" width="100%"></td><td>
+<table><tr><td width="55%"><img src="https://github.com/user-attachments/assets/49f12657-e1d9-452b-ae86-67cf68cc3bf2" alt="网页操作，一步一步" width="100%"></td><td>
 
 1. **放进素材**：照片、视频、小说、电影都行，文件一直留在你的电脑上。
 2. **挑出重要的**：agent 把找到的人物、地点、场景做成卡片，你来挑。
@@ -87,14 +87,14 @@ gameanything ui                                                    # 3. 打开�
 
 | BEFORE | ROUND 1 | ROUND 3 |
 |:--:|:--:|:--:|
-| <img src="https://github.com/user-attachments/assets/b14ae798-59a2-473d-b6c6-da97c8ac93e5" alt="Before" width="300"> | <img src="https://github.com/user-attachments/assets/b858ffc3-1f8f-400d-94d3-9281ab769f8d" alt="Round 1" width="300"> | <img src="https://github.com/user-attachments/assets/994a9e25-eaa4-40da-9708-ae8b219494b2" alt="Round 3" width="300"> |
+| <img src="https://github.com/user-attachments/assets/b02d7e42-73a1-48a9-bcac-80aa09b1b6e7" alt="Before" width="300"> | <img src="https://github.com/user-attachments/assets/c79a6fb0-728f-4e2f-bd2f-58c95108a1c6" alt="Round 1" width="300"> | <img src="https://github.com/user-attachments/assets/d35156bc-50ab-4526-8f3b-6d591dea309d" alt="Round 3" width="300"> |
 
 <!-- DEMO:G5 agent 试玩加速镜头 -->
 **从一片空地自己建起来（加速）**
 
 | 《红楼梦》· Minecraft | 《哈利波特》· Minecraft | 《无人生还》· Minecraft |
 |:--:|:--:|:--:|
-| <img src="https://github.com/user-attachments/assets/f490c377-73d9-4e61-9265-cf595cc3a45f" alt="Grand View Garden build" width="300"> | <img src="https://github.com/user-attachments/assets/d785e955-4301-4d7d-b826-f947c04a6490" alt="Hogwarts build" width="300"> | <img src="https://github.com/user-attachments/assets/f52af075-c7a5-4ead-8c5c-c153dcd1e12f" alt="无人生还的建造过程" width="300"> |
+| <img src="https://github.com/user-attachments/assets/b6a184c7-6d63-4aec-a1f1-623a1f24cb91" alt="Grand View Garden build" width="300"> | <img src="https://github.com/user-attachments/assets/35b9c736-d879-42ad-a103-e7dd22bb886c" alt="Hogwarts build" width="300"> | <img src="https://github.com/user-attachments/assets/96dcd53b-9690-4eb3-89af-0b3f69111e19" alt="无人生还的建造过程" width="300"> |
 
 ## 一轮比一轮好，一个项目比一个项目好
 
@@ -108,7 +108,7 @@ gameanything ui                                                    # 3. 打开�
 
 ## 实时看它干活
 
-<table><tr><td width="42%"><img src="https://github.com/user-attachments/assets/8cced8ef-3ac0-46cf-8493-a36919f68c45" alt="工作台" width="100%"></td><td>聊天里有一张实时卡片：构建 agent 现在在做什么（「在编译 mod」「在游戏里截图」「在等游戏启动」）、第几轮、用时和预计时间的对比、最新的截图。<br><br>卡住了或者用量到上限了，卡片上都会显示。点「看工作台」能看到时间线和进度；你同意后，还能看游戏的实时画面（只能看，不能操作）。</td></tr></table>
+<table><tr><td width="42%"><img src="https://github.com/user-attachments/assets/9a745b15-05c2-4809-bbd6-c43b0d8e1204" alt="工作台" width="100%"></td><td>聊天里有一张实时卡片：构建 agent 现在在做什么（「在编译 mod」「在游戏里截图」「在等游戏启动」）、第几轮、用时和预计时间的对比、最新的截图。<br><br>卡住了或者用量到上限了，卡片上都会显示。点「看工作台」能看到时间线和进度；你同意后，还能看游戏的实时画面（只能看，不能操作）。</td></tr></table>
 
 ## 四种模式
 
@@ -433,7 +433,7 @@ agent 还会给每个游戏记一本经验本（哪些做法管用、哪里踩�
 
 ## 隐私与安全
 
-<table><tr><td><ul><li><b>本地优先</b>：你的文件只读不改，项目放在你自己的数据文件夹里。</li><li><b>不经同意不发送</b>：任何照片或文字发给模型之前，先给你发一张许可卡。每一次把你的内容发出去的请求，都记在项目的隐私账本里。</li><li><b>不替真人编事实</b>：agent 给真人拟的台词都标成草稿，你确认了才算数。</li><li><b>存档有备份</b>：改动之前先备份存档和 mod 文件夹，每次安装都能还原、卸载。</li><li><b>构建在沙箱里</b>：沙箱构建在隔离的 Docker 容器里跑。本机模式下，agent 开你的游戏之前会先问你，也只关它自己开的游戏。</li></ul></td><td width="34%"><img src="https://github.com/user-attachments/assets/07e21bea-2e92-46aa-aa77-8bfe50bcebc5" alt="许可卡" width="100%"></td></tr></table>
+<table><tr><td><ul><li><b>本地优先</b>：你的文件只读不改，项目放在你自己的数据文件夹里。</li><li><b>不经同意不发送</b>：任何照片或文字发给模型之前，先给你发一张许可卡。每一次把你的内容发出去的请求，都记在项目的隐私账本里。</li><li><b>不替真人编事实</b>：agent 给真人拟的台词都标成草稿，你确认了才算数。</li><li><b>存档有备份</b>：改动之前先备份存档和 mod 文件夹，每次安装都能还原、卸载。</li><li><b>构建在沙箱里</b>：沙箱构建在隔离的 Docker 容器里跑。本机模式下，agent 开你的游戏之前会先问你，也只关它自己开的游戏。</li></ul></td><td width="34%"><img src="https://github.com/user-attachments/assets/351259ae-aefc-4741-b8da-8f70d39bfe03" alt="许可卡" width="100%"></td></tr></table>
 
 ## 评测基准
 
