@@ -151,7 +151,7 @@ def test_bin_launcher_runs_this_checkout():
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="bin/gameanything.cmd is the Windows launcher")
-@pytest.mark.parametrize("name", ["gameanything.cmd", "m2w.cmd"])
+@pytest.mark.parametrize("name", ["gameanything.cmd"])       # the old m2w.cmd launcher is gone since the rename
 def test_bin_launcher_cmd_runs_this_checkout(name):
     r = subprocess.run(["cmd", "/c", str(ROOT / "bin" / name), "--help"], capture_output=True, text=True, encoding="utf-8",
                        errors="replace", env=_env(), timeout=120)

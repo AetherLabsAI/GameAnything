@@ -64,7 +64,8 @@ def test_download_layout_hashes_and_reuse(tmp_path):
     assert (tmp_path / "libraries/org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar").is_file()
     assert not (tmp_path / "libraries/x/w.jar").exists()                       # a Windows-only library is skipped on Linux
     java = tmp_path / "runtime/java-runtime-x/linux/java-runtime-x/bin/java"
-    assert java.read_bytes() == b"#!java" and java.stat().st_mode & stat.S_IXUSR and r["java"] == str(java)
+    assert java.read_bytes() == b"#!java" and r["java"] == str(java)
+    assert os.name == "nt" or java.stat().st_mode & stat.S_IXUSR             # Windows has no executable bit
     assert (tmp_path / "runtime/java-runtime-x/linux/java-runtime-x/lib/link").is_symlink()
     assert (tmp_path / "mods/fabric-api-0.162.0+26.3.jar").is_file()
     # ga-mc and native build read it like any .minecraft
