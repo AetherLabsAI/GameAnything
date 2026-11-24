@@ -1,16 +1,20 @@
 {
   "name": "gameanything",
   "version": "0.0.1",
-  "description": "Turn your memories (wedding, trip, photos) into playable content inside a game you own. Guides the agent through the whole GameAnything workflow with the gameanything CLI.",
+  "description": "Turn your photos, memories, novels and films into playable mods for games you own: Minecraft, Stardew Valley, Cities: Skylines, Slay the Spire and more. Guides the agent through the whole GameAnything workflow with the gameanything CLI.",
   "author": {
     "name": "Wenyi Wu"
   },
   "keywords": [
-    "memories",
     "games",
-    "stardew-valley",
     "game-modding",
-    "agent-skills"
+    "agent-skills",
+    "memories",
+    "adaptation",
+    "minecraft",
+    "stardew-valley",
+    "cities-skylines",
+    "slay-the-spire"
   ],
   "homepage": "https://github.com/AetherLabsAI/GameAnything",
   "repository": "https://github.com/AetherLabsAI/GameAnything",

@@ -7,7 +7,7 @@
     {
       "name": "gameanything",
       "source": "./",
-      "description": "Turn your memories (wedding, trip, photos) into playable content inside a game you own. Guides the agent through the whole GameAnything workflow with the gameanything CLI."
+      "description": "Turn your photos, memories, novels and films into playable mods for games you own: Minecraft, Stardew Valley, Cities: Skylines, Slay the Spire and more. Guides the agent through the whole GameAnything workflow with the gameanything CLI."
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://code.claude.com/schemas/marketplace.json",
   "name": "gameanything",
-  "description": "GameAnything: turn your memories into playable content inside a game you own.",
+  "description": "GameAnything: turn any inspiration (photos, memories, novels, films) into playable worlds inside games you own.",
   "owner": {
     "name": "Wenyi Wu",
     "url": "https://github.com/WenyiWU0111"
@@ -10,7 +10,7 @@
     {
       "name": "gameanything",
       "source": "./",
-      "description": "Turn your memories (wedding, trip, photos) into playable content inside a game you own. Guides the agent through the whole GameAnything workflow with the gameanything CLI."
+      "description": "Turn your photos, memories, novels and films into playable mods for games you own: Minecraft, Stardew Valley, Cities: Skylines, Slay the Spire and more. Guides the agent through the whole GameAnything workflow with the gameanything CLI."
     }
   ]
 }
