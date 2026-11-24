@@ -17,7 +17,7 @@
   <img alt="4 modes" src="https://img.shields.io/badge/modes-4-blue">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-green"></a>
   <br>
-  <a href="#citation"><img alt="Paper: arXiv (coming soon)" src="https://img.shields.io/badge/paper-arXiv_(coming_soon)-B31B1B"></a>
+  <a href="https://arxiv.org/abs/2611.29238"><img alt="Paper: arXiv 2611.29238" src="https://img.shields.io/badge/paper-arXiv_2611.29238-B31B1B"></a>
   <a href="https://huggingface.co/spaces/GameAnything/GameAnything"><img alt="Project page" src="https://img.shields.io/badge/project-page-FFD21E"></a>
   <a href="https://github.com/AetherLabsAI/GameAnything-Bench"><img alt="Benchmark: GameAnything-Bench" src="https://img.shields.io/badge/benchmark-GameAnything--Bench-8A2BE2"></a>
 </p>
@@ -470,7 +470,7 @@ Code is welcome too: new agents, games and fixes, as pull requests to [GameAnyth
 
 ## Citation
 
-The paper is coming soon on arXiv. Until then, please cite:
+If you use GameAnything, please cite our [paper](https://arxiv.org/abs/2611.29238):
 
 ```bibtex
 @misc{wu2026gameanything,
@@ -478,7 +478,10 @@ The paper is coming soon on arXiv. Until then, please cite:
   author = {Wenyi Wu and Siqi Liu and Yuru Feng and Zixuan Song and Aayush Salvi and
             Sibo Zhu and Kun Zhou and Biwei Huang},
   year   = {2026},
-  note   = {arXiv preprint, coming soon}
+  eprint = {2611.29238},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  url    = {https://arxiv.org/abs/2611.29238}
 }
 ```
 

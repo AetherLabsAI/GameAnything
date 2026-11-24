@@ -17,7 +17,7 @@
   <img alt="4 种模式" src="https://img.shields.io/badge/模式-4-blue">
   <a href="LICENSE"><img alt="许可证 Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-green"></a>
   <br>
-  <a href="#引用"><img alt="论文：arXiv（即将发布）" src="https://img.shields.io/badge/论文-arXiv_即将发布-B31B1B"></a>
+  <a href="https://arxiv.org/abs/2611.29238"><img alt="论文：arXiv 2611.29238" src="https://img.shields.io/badge/论文-arXiv_2611.29238-B31B1B"></a>
   <a href="https://huggingface.co/spaces/GameAnything/GameAnything"><img alt="项目主页" src="https://img.shields.io/badge/项目-主页-FFD21E"></a>
   <a href="https://github.com/AetherLabsAI/GameAnything-Bench"><img alt="评测基准：GameAnything-Bench" src="https://img.shields.io/badge/评测基准-GameAnything--Bench-8A2BE2"></a>
 </p>
@@ -463,7 +463,7 @@ GameAnything 是一个开放的项目，我们热烈欢迎玩家、游戏设计�
 
 ## 引用
 
-论文即将发布在 arXiv 上。在此之前，请这样引用：
+如果 GameAnything 对你有帮助，请引用我们的[论文](https://arxiv.org/abs/2611.29238)：
 
 ```bibtex
 @misc{wu2026gameanything,
@@ -471,7 +471,10 @@ GameAnything 是一个开放的项目，我们热烈欢迎玩家、游戏设计�
   author = {Wenyi Wu and Siqi Liu and Yuru Feng and Zixuan Song and Aayush Salvi and
             Sibo Zhu and Kun Zhou and Biwei Huang},
   year   = {2026},
-  note   = {arXiv preprint, coming soon}
+  eprint = {2611.29238},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  url    = {https://arxiv.org/abs/2611.29238}
 }
 ```
 
