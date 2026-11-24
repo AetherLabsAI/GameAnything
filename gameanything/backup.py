@@ -161,7 +161,7 @@ def set_token(tok: str) -> str:
     if osdirs.secret_set("huggingface", "token", tok, "GameAnything Hugging Face token"): return "keyring"
     f = token_file(); f.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(f, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as h: h.write(tok + "\n")
+    with os.fdopen(fd, "w", encoding="utf-8") as h: h.write(tok + "\n")
     os.chmod(f, 0o600); return "file"
 
 

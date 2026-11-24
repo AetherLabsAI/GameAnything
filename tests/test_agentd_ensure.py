@@ -12,7 +12,7 @@ def test_off_switch_and_already_running():
 
 def test_starts_detached_when_down(tmp_path):
     """The script beside this Python (its venv), never another install found on PATH (an old m2w on her Mac, 2026-11-01)."""
-    venv = tmp_path / "venv" / "bin"; venv.mkdir(parents=True); (venv / "python").write_text(""); (venv / "gameanything").write_text("")
+    venv = tmp_path / "venv" / "bin"; venv.mkdir(parents=True); (venv / "python").write_text("", encoding="utf-8"); (venv / "gameanything").write_text("", encoding="utf-8")
     with mock.patch.object(agentd, "daemon_state", return_value={"alive": False}), \
          mock.patch.object(agentd.shutil, "which", side_effect=lambda n, path=None: "/old/bin/" + n), \
          mock.patch.object(agentd.sys, "executable", str(venv / "python")), \

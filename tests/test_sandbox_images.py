@@ -47,9 +47,9 @@ def test_image_files(game, tool):
     inst = (d / "install.sh").read_text(encoding="utf-8")
     assert "lab/images/common/layers.sh" in inst and "ga_need base" in inst and f"/usr/local/bin/{tool}" in inst
     assert "install-gameanything.sh" in inst
-    r = subprocess.run(["bash", "-n", str(d / "install.sh")], capture_output=True, text=True); assert r.returncode == 0, r.stderr
+    r = subprocess.run(["bash", "-n", str(d / "install.sh")], capture_output=True, text=True, encoding="utf-8"); assert r.returncode == 0, r.stderr
     for f in (d / "install.sh", d / tool): assert f.stat().st_mode & 0o111, f"{f} not executable"
-    r = subprocess.run([sys.executable, str(d / tool), "--help"], capture_output=True, text=True); assert r.returncode == 0, r.stderr
+    r = subprocess.run([sys.executable, str(d / tool), "--help"], capture_output=True, text=True, encoding="utf-8"); assert r.returncode == 0, r.stderr
 
 
 @exec_bits
@@ -122,17 +122,17 @@ def test_ga_readable_fixes_a_umask_077_tree(tmp_path):
     for p in ("/opt/gameanything", "/usr/local/lib/gameanything", "/game", "/saves", "/sandbox", "/home/player"):
         assert p in src.split("ROOTS=${GA_READABLE_ROOTS:-", 1)[1].split("}", 1)[0].split(), p
     a = tmp_path / "opt"; (a / "lib-src" / "gameanything").mkdir(parents=True); (a / "private").mkdir()
-    (a / "lib-src" / "gameanything" / "watchdog.py").write_text("x"); (a / "APT_SNAPSHOT").write_text("x")
-    (a / "run").write_text("#!/bin/sh\n"); (a / "private" / "key").write_text("k"); (a / "dangling").symlink_to("/nonexistent")
+    (a / "lib-src" / "gameanything" / "watchdog.py").write_text("x", encoding="utf-8"); (a / "APT_SNAPSHOT").write_text("x", encoding="utf-8")
+    (a / "run").write_text("#!/bin/sh\n", encoding="utf-8"); (a / "private" / "key").write_text("k", encoding="utf-8"); (a / "dangling").symlink_to("/nonexistent")
     sb = tmp_path / "sandbox"; sb.mkdir(); sb.chmod(0o1777)
     for f in [a / "lib-src" / "gameanything" / "watchdog.py", a / "APT_SNAPSHOT", a / "private" / "key"]: f.chmod(0o600)
     (a / "run").chmod(0o744)
     for d in [a / "lib-src" / "gameanything", a / "lib-src", a]: d.chmod(0o700)
     acc = [tmp_path / "passwd", tmp_path / "group"]                  # never the host's own /etc/passwd (the tests may run as root)
-    for f in acc: f.write_text("player:x:1000:\n"); f.chmod(0o664)    # a package that adds a system group rewrites it 664
+    for f in acc: f.write_text("player:x:1000:\n", encoding="utf-8"); f.chmod(0o664)    # a package that adds a system group rewrites it 664
     env = {"PATH": "/usr/bin:/bin", "GA_READABLE_ROOTS": f"{a} {sb} {tmp_path / 'missing'}", "GA_READABLE_PRIVATE": str(a / "private" / "key"),
            "GA_ACCOUNT_FILES": " ".join(map(str, acc + [tmp_path / "no-such-file"]))}
-    r = subprocess.run(["sh", str(tool)], capture_output=True, text=True, env=env)
+    r = subprocess.run(["sh", str(tool)], capture_output=True, text=True, env=env, encoding="utf-8")
     assert r.returncode == 0, r.stderr
     assert "6 entries" in r.stdout, r.stdout
     mode = lambda p: p.stat().st_mode & 0o7777
@@ -141,7 +141,7 @@ def test_ga_readable_fixes_a_umask_077_tree(tmp_path):
     assert mode(a / "private" / "key") == 0o600 and mode(sb) == 0o1777                  # PRIVATE kept; the 1777 volume untouched
     assert all(mode(f) == 0o666 for f in acc)                                            # galab.ensure_account can add a --user uid
     assert 'GA_ACCOUNT_FILES:-/etc/passwd /etc/group' in src
-    r = subprocess.run(["sh", str(tool)], capture_output=True, text=True, env=env)
+    r = subprocess.run(["sh", str(tool)], capture_output=True, text=True, env=env, encoding="utf-8")
     assert "0 entries" in r.stdout                                                        # nothing left to touch: no layer bloat
 
 
@@ -165,11 +165,11 @@ def test_galab_busid_and_copy(tmp_path):
     galab = _load(IMAGES / "common" / "galab.py", "galab")
     assert galab.busid("00000000:C4:00.0") == "PCI:196:0:0" and galab.busid("87:00.0") == "PCI:135:0:0"
     with pytest.raises(ValueError): galab.busid("")
-    src = tmp_path / "game"; (src / "Data").mkdir(parents=True); (src / "Data/a").write_text("x"); (src / "small.cfg").write_text("y")
-    (src / "skip.log").write_text("z"); (src / ".ga-ro-test-1").write_text("")
+    src = tmp_path / "game"; (src / "Data").mkdir(parents=True); (src / "Data/a").write_text("x", encoding="utf-8"); (src / "small.cfg").write_text("y", encoding="utf-8")
+    (src / "skip.log").write_text("z", encoding="utf-8"); (src / ".ga-ro-test-1").write_text("", encoding="utf-8")
     copied, linked = galab.copy_entries(src, tmp_path / "layer", link=("Data",), skip=lambda n: n.endswith(".log"))
     lay = tmp_path / "layer"
-    assert (copied, linked) == (1, 1) and (lay / "Data").is_symlink() and (lay / "small.cfg").read_text() == "y"
+    assert (copied, linked) == (1, 1) and (lay / "Data").is_symlink() and (lay / "small.cfg").read_text(encoding="utf-8") == "y"
     assert not (lay / "skip.log").exists() and not (lay / ".ga-ro-test-1").exists()
     assert galab.read_only(tmp_path) is False and not list(tmp_path.glob(".ga-ro-test-*"))
 
@@ -178,9 +178,9 @@ def test_ksp_tool(tmp_path):
     k = _load(IMAGES / "ksp" / "ga-ksp", "ga_ksp")
     g = tmp_path / "ksp"; (g / "KSP_Data/Managed").mkdir(parents=True)
     assert k.ksp_build(g) == "none"
-    (g / "KSP.x86_64").write_text(""); (g / "KSP_Data/Managed/Assembly-CSharp.dll").write_text("")
+    (g / "KSP.x86_64").write_text("", encoding="utf-8"); (g / "KSP_Data/Managed/Assembly-CSharp.dll").write_text("", encoding="utf-8")
     assert k.ksp_build(g) == "linux"
-    (g / "KSP_x64.exe").write_text(""); assert k.ksp_build(g) == "windows"
+    (g / "KSP_x64.exe").write_text("", encoding="utf-8"); assert k.ksp_build(g) == "windows"
     s = k.windowed("FULLSCREEN = True\nSCREEN_RESOLUTION_WIDTH = 2560\nOTHER = 1\n")
     assert "FULLSCREEN = False" in s and "SCREEN_RESOLUTION_WIDTH = 1280" in s and "OTHER = 1" in s and "SHOW_WHATSNEW_DIALOG = False" in s
 
@@ -188,9 +188,9 @@ def test_ksp_tool(tmp_path):
 def test_sts_tool(tmp_path):
     s = _load(IMAGES / "sts" / "ga-sts", "ga_sts")
     g = tmp_path / "sts"; g.mkdir(); assert s.sts_build(g) == "none"
-    (g / "desktop-1.0.jar").write_text(""); (g / "jre/bin").mkdir(parents=True); (g / "jre/bin/java").write_text("")
+    (g / "desktop-1.0.jar").write_text("", encoding="utf-8"); (g / "jre/bin").mkdir(parents=True); (g / "jre/bin/java").write_text("", encoding="utf-8")
     assert s.sts_build(g) == "linux"
-    (g / "SlayTheSpire.exe").write_text(""); assert s.sts_build(g) == "windows"
+    (g / "SlayTheSpire.exe").write_text("", encoding="utf-8"); assert s.sts_build(g) == "windows"
     j = tmp_path / "m.jar"
     with zipfile.ZipFile(j, "w") as z: z.writestr("ModTheSpire.json", '{"modid": "m2wsmoke"}')
     assert s.modid(j) == "m2wsmoke" and s.modid(tmp_path / "none.jar") is None
@@ -237,7 +237,7 @@ def _mc(root: Path):
 
 def test_mcversion_merge_classpath_arguments(tmp_path):
     root = _mc(tmp_path / ".minecraft")
-    (root / "versions/fabric-0.18.0-old").mkdir(); (root / "versions/fabric-0.18.0-old/fabric-0.18.0-old.json").write_text("{}")
+    (root / "versions/fabric-0.18.0-old").mkdir(); (root / "versions/fabric-0.18.0-old/fabric-0.18.0-old.json").write_text("{}", encoding="utf-8")
     assert mcversion.newest_fabric(root) == "fabric-loader-0.19.5-26.3" and mcversion.newest_fabric(tmp_path / "none") is None
     v = mcversion.load(root, "fabric-loader-0.19.5-26.3")
     assert v["mainClass"].endswith("KnotClient") and v["jar_version"] == "26.3" and mcversion.java_major(v) == 25
@@ -256,13 +256,13 @@ def test_mcversion_merge_classpath_arguments(tmp_path):
 def test_minecraft_native_build(tmp_path, monkeypatch):
     home = tmp_path / "home"; root = _mc(home / ".minecraft")
     _jar(root / "mods/fabric-api-0.162.0+26.3.jar", {"META-INF/jars/fabric-lifecycle-events-v1-2.6.jar": b"inner", "fabric.mod.json": "{}"})
-    jdk = tmp_path / "jdk/bin"; jdk.mkdir(parents=True); (jdk / "java").write_text(""); (jdk / "javac").write_text("")
+    jdk = tmp_path / "jdk/bin"; jdk.mkdir(parents=True); (jdk / "java").write_text("", encoding="utf-8"); (jdk / "javac").write_text("", encoding="utf-8")
     monkeypatch.setattr(games, "java", lambda sys_=None: {"ok": True, "path": str(jdk / "java"), "version": 25})
     monkeypatch.setattr(games.Game, "running", lambda self: False)
     g = games.get("minecraft", sys_="linux", home=home, env={"GAMEANYTHING_DATA": str(tmp_path / "data")})
-    src = tmp_path / "我的 mod"; (src / "src/main/java/m").mkdir(parents=True); (src / "src/main/java/m/A.java").write_text("package m; class A {}")
-    (src / "src/main/resources/assets/m").mkdir(parents=True); (src / "src/main/resources/assets/m/lang.json").write_text("{}")
-    (src / "src/main/resources/fabric.mod.json").write_text('{"schemaVersion": 1, "id": "mymod", "version": "1.2.0"}')
+    src = tmp_path / "我的 mod"; (src / "src/main/java/m").mkdir(parents=True); (src / "src/main/java/m/A.java").write_text("package m; class A {}", encoding="utf-8")
+    (src / "src/main/resources/assets/m").mkdir(parents=True); (src / "src/main/resources/assets/m/lang.json").write_text("{}", encoding="utf-8")
+    (src / "src/main/resources/fabric.mod.json").write_text('{"schemaVersion": 1, "id": "mymod", "version": "1.2.0"}', encoding="utf-8")
     calls = []
     def run(args, **kw):
         calls.append((args, kw)); out = Path(args[args.index("-d") + 1]); (out / "m").mkdir(parents=True); (out / "m/A.class").write_bytes(b"\xca\xfe")
@@ -318,20 +318,20 @@ def test_new_game_tools_read_the_build(tmp_path):
     """The tools of the six games added 2026-10-29 tell the Linux build from the others (fake folders, nothing runs)."""
     t = _load(IMAGES / "terraria" / "ga-terraria", "ga_terraria")
     g = tmp_path / "tml"; g.mkdir(); assert t.tml_build(g) == "none"
-    (g / "tModLoader.dll").write_text(""); (g / "start-tModLoader.sh").write_text(""); assert t.tml_build(g) == "linux"
+    (g / "tModLoader.dll").write_text("", encoding="utf-8"); (g / "start-tModLoader.sh").write_text("", encoding="utf-8"); assert t.tml_build(g) == "linux"
     for mod, exe in (("valheim", "valheim.x86_64"), ("overcooked2", "Overcooked2.x86_64")):
         m = _load(IMAGES / mod / ("ga-valheim" if mod == "valheim" else "ga-oc2"), f"ga_{mod}")
         d = tmp_path / mod; d.mkdir(); assert m.unity_build(d, exe) == "none"
-        (d / exe).write_text(""); (d / f"{exe.rsplit('.', 1)[0]}_Data" / "Managed").mkdir(parents=True); assert m.unity_build(d, exe) == "linux"
-        w = tmp_path / f"{mod}-win"; w.mkdir(); (w / f"{exe.rsplit('.', 1)[0]}.exe").write_text(""); assert m.unity_build(w, exe) == "windows"
+        (d / exe).write_text("", encoding="utf-8"); (d / f"{exe.rsplit('.', 1)[0]}_Data" / "Managed").mkdir(parents=True); assert m.unity_build(d, exe) == "linux"
+        w = tmp_path / f"{mod}-win"; w.mkdir(); (w / f"{exe.rsplit('.', 1)[0]}.exe").write_text("", encoding="utf-8"); assert m.unity_build(w, exe) == "windows"
         assert "BepInEx" in m.SKIPPED and "run_bepinex.sh" in m.SKIPPED          # the user's own loader never comes along
     c = _load(IMAGES / "cities" / "ga-cities", "ga_cities")
-    d = tmp_path / "cs"; (d / "Cities_Data" / "Managed").mkdir(parents=True); (d / "Cities.x64").write_text("")
+    d = tmp_path / "cs"; (d / "Cities_Data" / "Managed").mkdir(parents=True); (d / "Cities.x64").write_text("", encoding="utf-8")
     assert c.cities_build(d) == "none"
-    (d / "Cities_Data" / "Managed" / "ICities.dll").write_text(""); assert c.cities_build(d) == "linux"
+    (d / "Cities_Data" / "Managed" / "ICities.dll").write_text("", encoding="utf-8"); assert c.cities_build(d) == "linux"
     v = _load(IMAGES / "civ6" / "ga-civ6", "ga_civ6")
     d = tmp_path / "civ"; (d / "steamassets").mkdir(parents=True); assert v.civ6_build(d) == "none"
-    (d / "Civ6").write_text(""); assert v.civ6_build(d) == "linux"
+    (d / "Civ6").write_text("", encoding="utf-8"); assert v.civ6_build(d) == "linux"
     s = _load(IMAGES / "sims4" / "ga-sims4", "ga_sims4")
     assert s.EXE.as_posix() == "Game/Bin/TS4_x64.exe" and s.PREFIX_GAME.parts[-3:] == ("Program Files", "EA Games", "The Sims 4")
 
@@ -340,10 +340,10 @@ def test_terraria_watches_the_game_not_the_start_script(tmp_path, monkeypatch):
     """start-tModLoader.sh (2026 Steam build) starts LaunchUtils/ScriptCaller.sh with & and returns: ga-terraria run said "the game
     exited" while tModLoader started (plain Docker test, 2026-10-30). ScriptCaller.sh ends in exec dotnet, so its pid is the game's."""
     t = _load(IMAGES / "terraria" / "ga-terraria", "ga_terraria")
-    lay = tmp_path / "game"; lay.mkdir(); (lay / "start-tModLoader.sh").write_text("")
+    lay = tmp_path / "game"; lay.mkdir(); (lay / "start-tModLoader.sh").write_text("", encoding="utf-8")
     monkeypatch.setattr(t, "LAYER", lay)
     assert t.Terraria().game_argv()[1] == str(lay / "start-tModLoader.sh")          # an older folder without LaunchUtils
-    (lay / "LaunchUtils").mkdir(); (lay / "LaunchUtils" / "ScriptCaller.sh").write_text("")
+    (lay / "LaunchUtils").mkdir(); (lay / "LaunchUtils" / "ScriptCaller.sh").write_text("", encoding="utf-8")
     argv = t.Terraria().game_argv()
     assert argv[:2] == ["bash", str(lay / "LaunchUtils" / "ScriptCaller.sh")] and argv[2:] == ["-tmlsavedirectory", str(t.SAVES)]
 
@@ -357,9 +357,9 @@ def test_terraria_layer_skips_the_first_start_screens(tmp_path):
     assert t.tml_version(game / "tModLoader.dll") == "2026.8.3.0" and t.tml_version(tmp_path / "missing.dll") is None
     saves = tmp_path / "saves"; saves.mkdir()
     assert t.seed_config(saves, game) == {"Language": "en-US", "LastLaunchedTModLoaderVersion": "2026.8.3.0"}
-    assert json.loads((saves / "config.json").read_text())["Language"] == "en-US"
-    (saves / "config.json").write_text('{"Language": "de-DE"}')
-    assert t.seed_config(saves, game) is None and "de-DE" in (saves / "config.json").read_text()     # never over the game's own
+    assert json.loads((saves / "config.json").read_text(encoding="utf-8"))["Language"] == "en-US"
+    (saves / "config.json").write_text('{"Language": "de-DE"}', encoding="utf-8")
+    assert t.seed_config(saves, game) is None and "de-DE" in (saves / "config.json").read_text(encoding="utf-8")     # never over the game's own
     other = tmp_path / "s2"; other.mkdir()
     assert t.seed_config(other, tmp_path / "nogame") == {"Language": "en-US"}                         # no version: only the language
 
@@ -415,14 +415,14 @@ def test_bepinex_install_sets_the_executable(tmp_path):
         z.writestr("run_bepinex.sh", '#!/bin/sh\nexecutable_name=""\nenabled="1"\n'); z.writestr("BepInEx/core/BepInEx.dll", "")
     lay = tmp_path / "layer"; lay.mkdir()
     assert galab.bepinex_install(lay, "valheim.x86_64", vendor=v) == "5.4.23.5"
-    assert 'executable_name="valheim.x86_64"' in (lay / "run_bepinex.sh").read_text() and (lay / "BepInEx" / "plugins").is_dir()
+    assert 'executable_name="valheim.x86_64"' in (lay / "run_bepinex.sh").read_text(encoding="utf-8") and (lay / "BepInEx" / "plugins").is_dir()
     assert (lay / "run_bepinex.sh").stat().st_mode & 0o111
     with pytest.raises(FileNotFoundError): galab.bepinex_install(lay, "x", vendor=tmp_path / "none")
 
 
 def test_ga_ea_uses_the_wine_layer(tmp_path, monkeypatch):
     """In the Sims 4 image Wine, mono, gecko and DXVK come from the wine layer; only EA's installer is downloaded (into the volume)."""
-    baked = tmp_path / "opt"; (baked / "wine" / "bin").mkdir(parents=True); (baked / "wine" / "bin" / "wine").write_text("")
+    baked = tmp_path / "opt"; (baked / "wine" / "bin").mkdir(parents=True); (baked / "wine" / "bin" / "wine").write_text("", encoding="utf-8")
     (baked / "dxvk" / "x64").mkdir(parents=True)
     monkeypatch.setenv("GA_EA_BAKED", str(baked)); monkeypatch.setenv("GA_EA_HOME", str(tmp_path / "ea"))
     ea = _load(IMAGES / "common" / "ga-ea", "ga_ea_baked")
@@ -437,12 +437,12 @@ def test_sdv_names_out_of_memory(tmp_path, monkeypatch):
     cgroup's oom_kill counter and limit and says what happened and what to do."""
     m = _load(IMAGES / "stardew" / "ga-sdv", "ga_sdv_oom")
     cg = tmp_path / "cg"; cg.mkdir()
-    (cg / "memory.events").write_text("low 0\nhigh 0\nmax 884\noom 1\noom_kill 2\noom_group_kill 0\n")
-    (cg / "memory.max").write_text("734003200\n")
+    (cg / "memory.events").write_text("low 0\nhigh 0\nmax 884\noom 1\noom_kill 2\noom_group_kill 0\n", encoding="utf-8")
+    (cg / "memory.max").write_text("734003200\n", encoding="utf-8")
     real = m.Path
     monkeypatch.setattr(m, "Path", lambda p, *a: real(str(p).replace("/sys/fs/cgroup", str(cg)), *a))
     assert m.oom_kills() == (2, 734003200)
-    (cg / "memory.max").write_text("max\n"); (cg / "memory.events").unlink()
+    (cg / "memory.max").write_text("max\n", encoding="utf-8"); (cg / "memory.events").unlink()
     assert m.oom_kills() == (0, None)
 
 
@@ -475,7 +475,7 @@ def test_pid_files_from_before_a_container_restart_are_stale(tmp_path, monkeypat
     for path, name in ((IMAGES / "stardew" / "ga-sdv", "ga_sdv_pid"), (IMAGES / "common" / "galab.py", "galab_pid")):
         m = _load(path, name)
         monkeypatch.setattr(m, "RUN", tmp_path)
-        (tmp_path / "xvfb.pid").write_text(str(os.getpid()))                  # a live process
+        (tmp_path / "xvfb.pid").write_text(str(os.getpid()), encoding="utf-8")                  # a live process
         pa = m.pid_alive if hasattr(m, "pid_alive") else m.Lab.pid_alive
         monkeypatch.setattr(m, "container_started", lambda: 0)
         assert pa("xvfb") == os.getpid()
@@ -498,7 +498,7 @@ def test_cities_sees_the_menu_of_the_2026_build():
 def test_galab_finds_stray_game_processes(tmp_path):
     """`stop` also ends a game process outside the started group, found by its executable in the layer (Cities, 2026-10-30)."""
     galab = _load(IMAGES / "common" / "galab.py", "galab")
-    lay = tmp_path / "game"; lay.mkdir(); (lay / "Cities.x64").write_text("")
+    lay = tmp_path / "game"; lay.mkdir(); (lay / "Cities.x64").write_text("", encoding="utf-8")
     proc = tmp_path / "proc"
     for pid, exe in ((101, lay / "Cities.x64"), (102, Path("/usr/bin/steam")), (103, tmp_path / "game2" / "x")):
         (proc / str(pid)).mkdir(parents=True); (proc / str(pid) / "exe").symlink_to(exe)
@@ -509,16 +509,16 @@ def test_galab_finds_stray_game_processes(tmp_path):
 def test_galab_adds_the_account_of_another_uid(tmp_path):
     """--user 1004 on a pulled image (uid 1000 inside): no passwd line, Civ VI segfaulted (2026-10-30). galab adds one, once."""
     galab = _load(IMAGES / "common" / "galab.py", "galab")
-    pw = tmp_path / "passwd"; pw.write_text("root:x:0:0:root:/root:/bin/bash\nplayer:x:1000:1000::/home/player:/bin/bash\n")
-    gr = tmp_path / "group"; gr.write_text("root:x:0:\nplayer:x:1000:\n")
+    pw = tmp_path / "passwd"; pw.write_text("root:x:0:0:root:/root:/bin/bash\nplayer:x:1000:1000::/home/player:/bin/bash\n", encoding="utf-8")
+    gr = tmp_path / "group"; gr.write_text("root:x:0:\nplayer:x:1000:\n", encoding="utf-8")
     assert galab.ensure_account(pw, gr, uid=1000, gid=1000, home="/home/player") is False
     assert galab.ensure_account(pw, gr, uid=1004, gid=1004, home="/sandbox/home") is True
-    assert "player1004:x:1004:1004::/sandbox/home:/bin/bash" in pw.read_text() and "player1004:x:1004:" in gr.read_text()
+    assert "player1004:x:1004:1004::/sandbox/home:/bin/bash" in pw.read_text(encoding="utf-8") and "player1004:x:1004:" in gr.read_text(encoding="utf-8")
     assert galab.ensure_account(pw, gr, uid=1004, gid=1004, home="/sandbox/home") is False      # once
-    ro = tmp_path / "ro"; ro.write_text(pw.read_text()); ro.chmod(0o444)
+    ro = tmp_path / "ro"; ro.write_text(pw.read_text(encoding="utf-8"), encoding="utf-8"); ro.chmod(0o444)
     if os.access(ro, os.W_OK): return                                                         # running as root: no read-only file
     assert galab.ensure_account(ro, gr, uid=1005, gid=1004) is False
-    assert "chmod 666 /etc/passwd /etc/group" in (IMAGES / "common" / "install-system.sh").read_text()
+    assert "chmod 666 /etc/passwd /etc/group" in (IMAGES / "common" / "install-system.sh").read_text(encoding="utf-8")
 
 
 def test_civ6_screen_holds_the_2k_agreement(monkeypatch):
@@ -537,7 +537,7 @@ def test_galab_follows_a_game_that_restarts_itself(tmp_path):
     galab = _load(IMAGES / "common" / "galab.py", "galab")
     proc = tmp_path / "proc"
     for pid, comm in ((201, "wineserver"), (305, "TS4_x64.exe"), (306, "Steam")):
-        (proc / str(pid)).mkdir(parents=True); (proc / str(pid) / "comm").write_text(comm + "\n")
+        (proc / str(pid)).mkdir(parents=True); (proc / str(pid) / "comm").write_text(comm + "\n", encoding="utf-8")
     (proc / "self").mkdir()
     assert galab.pids_by_comm("TS4_x64.exe", proc) == [305] and galab.pids_by_comm("nothing", proc) == []
     s4 = _load(IMAGES / "sims4" / "ga-sims4", "ga_sims4").Sims4
@@ -603,10 +603,10 @@ def test_valheim_names_steam_cloud_saves(tmp_path):
     v = _load(IMAGES / "valheim" / "ga-valheim", "ga_valheim_cloud")
     remote = tmp_path / ".steam" / "debian-installation" / "userdata" / "123" / v.APPID / "remote"
     (remote / "characters").mkdir(parents=True); (remote / "worlds").mkdir()
-    old = remote / "characters" / "hers.fch"; old.write_text(""); os.utime(old, (1000, 1000))
-    new = remote / "worlds" / "test.fwl"; new.write_text("")
+    old = remote / "characters" / "hers.fch"; old.write_text("", encoding="utf-8"); os.utime(old, (1000, 1000))
+    new = remote / "worlds" / "test.fwl"; new.write_text("", encoding="utf-8")
     local = tmp_path / ".config" / "unity3d" / "IronGate" / "Valheim" / "characters_local"; local.mkdir(parents=True)
-    (local / "local.fch").write_text("")
+    (local / "local.fch").write_text("", encoding="utf-8")
     assert v.cloud_saves(tmp_path, since=2000) == [str(new.resolve())]                  # hers (older) and local ones are not named
     assert len(v.cloud_saves(tmp_path)) == 2 and v.cloud_saves(tmp_path / "none") == []
     role = (ROOT / "skills" / "gameanything" / "roles" / "builder.md").read_text(encoding="utf-8")
@@ -641,7 +641,7 @@ def _cp_vendor(tmp_path, ver="2.9.1"):
     src = tmp_path / "tarsrc" / f"StardewMods-content-patcher-{ver}"
     for f in ("ContentPatcher/ContentPatcher.csproj", "Common/Common.projitems", "Directory.Build.props", "Directory.Packages.props", "LICENSE",
               "LookupAnything/skip.cs"):
-        (src / f).parent.mkdir(parents=True, exist_ok=True); (src / f).write_text("x")
+        (src / f).parent.mkdir(parents=True, exist_ok=True); (src / f).write_text("x", encoding="utf-8")
     with tarfile.open(vendor / f"ContentPatcher-{ver}-src.tar.gz", "w:gz") as z: z.add(src, arcname=src.name)
     return vendor
 
@@ -659,7 +659,7 @@ zp = Path(next(a.split("=", 1)[1] for a in sys.argv if a.startswith("-p:ModZipPa
 with zipfile.ZipFile(zp / "ContentPatcher {ver}.zip", "w") as z:
     z.writestr("ContentPatcher/ContentPatcher.dll", "dll")
     z.writestr("ContentPatcher/manifest.json", json.dumps({{"Name": "Content Patcher", "Version": {ver!r}, "UniqueID": "Pathoschild.ContentPatcher"}}))
-""")
+""", encoding="utf-8")
     exe.chmod(0o755)
     return exe, calls
 
@@ -680,7 +680,7 @@ def test_sdv_layer_builds_content_patcher_offline_once(tmp_path, monkeypatch, ca
     lay = m.LAYER
     assert m.install_cp(lay)[0] == "2.9.1" and m.cp_installed(lay) == "2.9.1"
     assert (lay / "Mods/ContentPatcher/ContentPatcher.dll").is_file() and not list((lay / "Mods").glob(".ga-new-*"))
-    c = [json.loads(l) for l in calls.read_text().splitlines()]
+    c = [json.loads(l) for l in calls.read_text(encoding="utf-8").splitlines()]
     assert len(c) == 1
     a = c[0]["argv"]
     assert a[:2] == ["build", "ContentPatcher/ContentPatcher.csproj"] and f"-p:GamePath={lay}" in a and "-p:EnableModDeploy=false" in a
@@ -690,10 +690,10 @@ def test_sdv_layer_builds_content_patcher_offline_once(tmp_path, monkeypatch, ca
     assert cfg == "NuGet.Config" and c[0]["nuget"].startswith(str(m.SANDBOX))         # the image's folder is a source, never written
     assert not (m.SANDBOX / "tmp" / "content-patcher").exists()                         # cleaned up
     # the same version already there: no build
-    ver, msg = m.install_cp(lay); assert ver == "2.9.1" and "already installed" in msg and len(calls.read_text().splitlines()) == 1
+    ver, msg = m.install_cp(lay); assert ver == "2.9.1" and "already installed" in msg and len(calls.read_text(encoding="utf-8").splitlines()) == 1
     # an existing layer gets it through `ga-sdv layer` (no --force) and records it; doctor reports it
-    (lay / ".ga-layer.json").write_text(json.dumps({"smapi": "SMAPI-4.5.2-installer.zip"}))
-    assert m.ensure_cp() == "2.9.1" and json.loads((lay / ".ga-layer.json").read_text())["content_patcher"] == "2.9.1"
+    (lay / ".ga-layer.json").write_text(json.dumps({"smapi": "SMAPI-4.5.2-installer.zip"}), encoding="utf-8")
+    assert m.ensure_cp() == "2.9.1" and json.loads((lay / ".ga-layer.json").read_text(encoding="utf-8"))["content_patcher"] == "2.9.1"
     monkeypatch.setattr(m, "GAME", tmp_path / "nogame"); capsys.readouterr()
     m.doctor(argparse.Namespace(json=True)); d = json.loads(capsys.readouterr().out)
     assert d["content_patcher"] == "2.9.1" and d["content_patcher_vendor"] == "2.9.1"
@@ -706,10 +706,10 @@ def test_sdv_content_patcher_failure_is_not_fatal(tmp_path, monkeypatch):
     (m.LAYER / "Mods/OtherMod").mkdir()
     ver, msg = m.install_cp(m.LAYER)
     assert ver is None and "dotnet build failed (exit 1)" in msg and "SMAPI C# mods work" in msg and "nexusmods.com/stardewvalley/mods/1915" in msg
-    assert "CS0305" in (m.LOGS / "content-patcher-build.log").read_text() and sorted(p.name for p in (m.LAYER / "Mods").iterdir()) == ["OtherMod"]
+    assert "CS0305" in (m.LOGS / "content-patcher-build.log").read_text(encoding="utf-8") and sorted(p.name for p in (m.LAYER / "Mods").iterdir()) == ["OtherMod"]
     # a different (older) version is replaced; an image without the source says so
-    (m.LAYER / "Mods/ContentPatcher").mkdir(); (m.LAYER / "Mods/ContentPatcher/ContentPatcher.dll").write_text("old")
-    (m.LAYER / "Mods/ContentPatcher/manifest.json").write_text('{"Version": "2.8.0"}')
+    (m.LAYER / "Mods/ContentPatcher").mkdir(); (m.LAYER / "Mods/ContentPatcher/ContentPatcher.dll").write_text("old", encoding="utf-8")
+    (m.LAYER / "Mods/ContentPatcher/manifest.json").write_text('{"Version": "2.8.0"}', encoding="utf-8")
     (tmp_path / "ok").mkdir(); exe, _ = _fake_dotnet(tmp_path / "ok"); monkeypatch.setenv("GA_DOTNET", str(exe))
     assert m.install_cp(m.LAYER)[0] == "2.9.1" and m.cp_installed(m.LAYER) == "2.9.1"
     monkeypatch.setattr(m, "VENDOR", tmp_path / "empty")

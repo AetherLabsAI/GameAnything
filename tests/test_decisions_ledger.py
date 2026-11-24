@@ -100,7 +100,7 @@ except decisions.NotTheServer:
 
 def agent_run(code, *args):
     env = {**os.environ, "PYTHONPATH": str(REPO)}
-    r = subprocess.run([sys.executable, "-c", code, *map(str, args)], env=env, capture_output=True, text=True, timeout=120)
+    r = subprocess.run([sys.executable, "-c", code, *map(str, args)], env=env, capture_output=True, text=True, timeout=120, encoding="utf-8")
     return r.stdout.strip() + r.stderr.strip()
 
 

@@ -177,7 +177,7 @@ def test_recheck_uses_the_saved_token_without_a_sign_in(tmp_path):
     ms.seen.clear()
     assert msauth.recheck(tmp_path, ms)["owns_java"]
     assert msauth.DEVICE_URL not in [u for u, *_ in ms.seen]
-    assert json.loads((tmp_path / "microsoft.json").read_text())["refresh_token"] == "ms-refresh-2"
+    assert json.loads((tmp_path / "microsoft.json").read_text(encoding="utf-8"))["refresh_token"] == "ms-refresh-2"
     msauth.logout(tmp_path)
     assert not msauth.status(tmp_path)["signed_in"]
     with pytest.raises(msauth.AuthError, match="not signed in"): msauth.recheck(tmp_path, ms)

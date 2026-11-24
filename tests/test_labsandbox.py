@@ -94,7 +94,7 @@ def test_up_starts_without_the_game_until_steam_downloaded_it(tmp_path, host):
     run = next(c for c in d.calls if c[0] == "run" and "--entrypoint" not in c)
     assert r["code"] == 0 and not any("dst=/game," in x for x in run) and "org.gameanything.game-mounted=0" in run
     assert "--gpus" in run and any("login steam" in n and "--install" in n for n in r["next"])
-    assert "source: steam" in (p / "config" / "project.yaml").read_text() and "build_mode: lab" in (p / "config" / "project.yaml").read_text()
+    assert "source: steam" in (p / "config" / "project.yaml").read_text(encoding="utf-8") and "build_mode: lab" in (p / "config" / "project.yaml").read_text(encoding="utf-8")
     d.c["ga-valheim"] = {"running": True, "project": "proj", "mounted": "0"}; d.downloaded = True; d.calls.clear()
     r = labsandbox.up(_args(p), d, say=lambda *x: None, sleep=lambda s: None)            # downloaded now: re-created with /game
     run = next(c for c in d.calls if c[0] == "run" and "--entrypoint" not in c)

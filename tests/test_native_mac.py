@@ -265,7 +265,7 @@ def _cp_pack(tmp, content=True, manifest=None):
     (src / "manifest.json").write_text(manifest or '{"Name": "My pack", "Author": "m2w", "Version": "1.0.0", "UniqueID": "m2w.MyPack",'
                                        ' "ContentPackFor": {"UniqueID": "Pathoschild.ContentPatcher"}}', encoding="utf-8")
     if content: (src / "content.json").write_text('{"Format": "2.9.0", "Changes": []}', encoding="utf-8")
-    (src / "assets" / "花.png").write_bytes(b"PNG"); (src / ".git" / "HEAD").write_text("x")
+    (src / "assets" / "花.png").write_bytes(b"PNG"); (src / ".git" / "HEAD").write_text("x", encoding="utf-8")
     return src
 
 

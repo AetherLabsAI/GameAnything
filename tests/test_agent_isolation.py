@@ -238,7 +238,7 @@ def as_agent(account, script, env=None, timeout=60):
     pw = pwd.getpwnam(account)
     p = subprocess.run([SYSPY, "-I", "-c", textwrap.dedent(script)], user=pw.pw_uid, group=pw.pw_gid,
                        extra_groups=os.getgrouplist(account, pw.pw_gid), env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", **(env or {})},
-                       capture_output=True, text=True, timeout=timeout, cwd="/")
+                       capture_output=True, text=True, timeout=timeout, cwd="/", encoding="utf-8")
     return p
 
 
@@ -327,7 +327,7 @@ def test_real_account_every_bypass_fails(accounts, tmp_path, monkeypatch):
         pw = pwd.getpwnam(A)
         proc = subprocess.Popen([SYSPY, "-I", "-c", textwrap.dedent(ATTACKS)], user=pw.pw_uid, group=pw.pw_gid,
                                 extra_groups=os.getgrouplist(A, pw.pw_gid), env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", **env},
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd="/")
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd="/", encoding="utf-8")
         runs.update(pid=proc.pid, run={"root": str(root), "project": pid, "session": f"agentd:{pid}", "run_id": "run1", "role": "resident", "account": A})
         out, err = proc.communicate(timeout=120)
         R = json.loads(out.strip().splitlines()[-1]) if out.strip() else {}

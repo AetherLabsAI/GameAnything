@@ -177,7 +177,7 @@ def test_an_unknown_stall_is_reported_with_a_screenshot_and_a_redacted_snapshot(
     unk = [e for e in w.events if e["kind"] == "unknown"]
     assert len(unk) == 1 and r["screenshot"] and Path(r["screenshot"]).read_bytes() == b"PNG"
     assert r["screenshot"] in unk[0]["en"] and "Steam 1024x768" in unk[0]["en"] and unk[0]["zh"]
-    saved = next(tmp_path.glob("stall-*.json")).read_text()
+    saved = next(tmp_path.glob("stall-*.json")).read_text(encoding="utf-8")
     assert "someone@example.com" not in saved and "[email]" in saved
     clock.t += 30; w.tick()
     assert len([e for e in w.events if e["kind"] == "unknown"]) == 1      # once per stalled state
@@ -234,7 +234,7 @@ def test_redact_removes_tokens_ids_and_emails():
 
 
 def test_known_in_log_for_the_launch_wait():
-    hits = watchdog.known_in_log("minecraft", "launch", {"mc_game": (FIX / "mc_latest_world_missing.txt").read_text()})
+    hits = watchdog.known_in_log("minecraft", "launch", {"mc_game": (FIX / "mc_latest_world_missing.txt").read_text(encoding="utf-8")})
     assert [e["id"] for e in hits] == ["mc_world_not_found"]
     assert watchdog.known_in_log("minecraft", "launch", {"mc_game": "[12:00] joined the game"}) == []
 
@@ -243,13 +243,13 @@ def test_known_in_log_for_the_launch_wait():
 def test_snapshot_reads_logs_and_one_setting_but_never_a_whole_login_file(tmp_path):
     root = tmp_path / "steam"
     (root / "logs").mkdir(parents=True); (root / "config").mkdir()
-    (root / "logs" / "steamui_login.txt").write_text((FIX / "steamui_login_waiting.txt").read_text())
+    (root / "logs" / "steamui_login.txt").write_text((FIX / "steamui_login_waiting.txt").read_text(encoding="utf-8"), encoding="utf-8")
     (root / "config" / "config.vdf").write_text('"InstallConfigStore"\n{\n "ConnectCache" { "abc" "SECRET-LOGIN-TOKEN-0123" }\n'
-                                                ' "EnableShaderBackgroundProcessing"\t\t"0"\n}\n')
+                                                ' "EnableShaderBackgroundProcessing"\t\t"0"\n}\n', encoding="utf-8")
     s = watchdog.collect(watchdog.LocalBox(), "steam", root=str(root), display=":987")
     assert "error" not in s and "WaitingForCredentials" in s["logs"]["steamui_login"]
     assert s["greps"]["shader_bg"] == "0" and "SECRET-LOGIN-TOKEN" not in json.dumps(s)
-    tok = tmp_path / "account" / "microsoft.json"; tok.parent.mkdir(); tok.write_text('{"refresh_token": "SECRET-REFRESH"}')
+    tok = tmp_path / "account" / "microsoft.json"; tok.parent.mkdir(); tok.write_text('{"refresh_token": "SECRET-REFRESH"}', encoding="utf-8")
     rc, out = watchdog.LocalBox().py(watchdog.SNAPSHOT_PY, {"GA_WD": json.dumps({"jsons": {"t": str(tok)}, "logs": {"t": str(tok)},
                                                                                   "secret": watchdog.SECRET_FILES.pattern, "display": ":987"})})
     assert rc == 0 and "SECRET-REFRESH" not in out and "t" not in json.loads(out)["jsons"]
@@ -279,9 +279,9 @@ def test_ga_steam_finds_the_watchdog_and_reads_the_first_start_update(tmp_path, 
     g = _ga_steam(tmp_path, monkeypatch)
     assert g.watchdog is not None
     (tmp_path / "steam" / "logs").mkdir(parents=True)
-    (tmp_path / "steam" / "logs" / "bootstrap_log.txt").write_text((FIX / "bootstrap_downloading.txt").read_text())
+    (tmp_path / "steam" / "logs" / "bootstrap_log.txt").write_text((FIX / "bootstrap_downloading.txt").read_text(encoding="utf-8"), encoding="utf-8")
     assert g.bootstrap() == ("downloading", 50)
-    (tmp_path / "steam" / "logs" / "webhelper.txt").write_text((FIX / "webhelper_login.txt").read_text())
+    (tmp_path / "steam" / "logs" / "webhelper.txt").write_text((FIX / "webhelper_login.txt").read_text(encoding="utf-8"), encoding="utf-8")
     assert g.desktop_login_window()
 
 
@@ -303,10 +303,10 @@ def test_ga_steam_owns(tmp_path, monkeypatch, capsys):
     (tmp_path / "steam" / "steamapps").mkdir(parents=True); (tmp_path / "steam" / "logs").mkdir()
     g.cmd_owns(argparse.Namespace(appid=413150, json=True))
     assert json.loads(capsys.readouterr().out)["owned"] is None
-    (tmp_path / "steam" / "logs" / "content_log.txt").write_text("[2026-10-26 10:00:00] AppID 105600 : No licenses\n")
+    (tmp_path / "steam" / "logs" / "content_log.txt").write_text("[2026-10-26 10:00:00] AppID 105600 : No licenses\n", encoding="utf-8")
     g.cmd_owns(argparse.Namespace(appid=105600, json=True))
     assert json.loads(capsys.readouterr().out)["owned"] is False
-    (tmp_path / "steam" / "steamapps" / "appmanifest_413150.acf").write_text((FIX / "acf_413150_dialog.acf").read_text().replace('"2"', '"4"'))
+    (tmp_path / "steam" / "steamapps" / "appmanifest_413150.acf").write_text((FIX / "acf_413150_dialog.acf").read_text(encoding="utf-8").replace('"2"', '"4"'), encoding="utf-8")
     g.cmd_owns(argparse.Namespace(appid=413150, json=True))
     assert json.loads(capsys.readouterr().out)["owned"] is True
 
@@ -319,7 +319,7 @@ def test_galab_launch_wait_knows_the_missing_world(monkeypatch):
         import galab
     finally: sys.path.remove(str(root / "lab" / "images" / "common"))
     monkeypatch.setenv("GAMEANYTHING_LANG", "zh")
-    w = galab.known_in_log("ga-mc", (FIX / "mc_latest_world_missing.txt").read_text())
+    w = galab.known_in_log("ga-mc", (FIX / "mc_latest_world_missing.txt").read_text(encoding="utf-8"))
     assert w and "Create New World" in w and "存档" in w
     assert galab.known_in_log("ga-ksp", "anything") is None and galab.known_in_log("ga-mc", "[x] joined the game") is None
 
@@ -377,7 +377,7 @@ def test_ga_ea_starts_the_newest_versioned_launcher_and_reports_a_steam_linked_g
     m = _ga_ea(tmp_path, monkeypatch)
     assert m.watchdog is not None and m.launcher() is None
     for v in ("13.9.0.1", "13.813.1.6327"):
-        p = m.EA_DIR / v / "EA Desktop" / "EALauncher.exe"; p.parent.mkdir(parents=True); p.write_text("")
+        p = m.EA_DIR / v / "EA Desktop" / "EALauncher.exe"; p.parent.mkdir(parents=True); p.write_text("", encoding="utf-8")
     assert m.launcher().parts[-3] == "13.813.1.6327"           # the junction "EA Desktop\EA Desktop" is broken under Wine
     monkeypatch.setattr(m, "facts", lambda: watchdog.facts({"procs": [{"pid": 1, "state": "S", "argv": ["C:\\x\\EADesktop.exe"]}],
                                                             "greps": {"ea_fsm": ["2026-10-29T19:21:38", "authenticated"],
@@ -471,12 +471,12 @@ def test_ga_steam_shm_fix_appends_the_flag_once(tmp_path, monkeypatch):
     assert len(new) == len(wrap) and new.startswith("#!/bin/bash\n")   # Steam checks its files by size: a longer one = reinstall (#26)
     assert g.shm_fix_text(new) == new and g.shm_fix_text("#!/bin/sh\n") is None
     assert g.shm_fix_text('#!/bin/bash\nexec ./steamwebhelper "$@"\n') is None          # no comment to shorten: not touched
-    w = tmp_path / "steam" / "ubuntu12_64" / "steamwebhelper_sniper_wrap.sh"; w.parent.mkdir(parents=True); w.write_text(wrap)
+    w = tmp_path / "steam" / "ubuntu12_64" / "steamwebhelper_sniper_wrap.sh"; w.parent.mkdir(parents=True); w.write_text(wrap, encoding="utf-8")
     monkeypatch.setattr(g, "shm_mb", lambda: 64)
-    assert g.shm_fix(restart=False, quiet=True) == "set" and "--disable-dev-shm-usage" in w.read_text()
+    assert g.shm_fix(restart=False, quiet=True) == "set" and "--disable-dev-shm-usage" in w.read_text(encoding="utf-8")
     assert g.shm_fix(restart=False, quiet=True) == "ok"
-    monkeypatch.setattr(g, "shm_mb", lambda: 1024); w.write_text(wrap)
-    assert g.shm_fix(restart=False, quiet=True) == "ok" and "--disable-dev-shm-usage" not in w.read_text()
+    monkeypatch.setattr(g, "shm_mb", lambda: 1024); w.write_text(wrap, encoding="utf-8")
+    assert g.shm_fix(restart=False, quiet=True) == "ok" and "--disable-dev-shm-usage" not in w.read_text(encoding="utf-8")
     assert watchdog.ACTIONS["steam_webhelper_no_shm"] == "ga-steam shm-fix"
 
 
@@ -509,6 +509,6 @@ def test_no_ea_screenshot_when_its_state_log_cannot_be_read(tmp_path, monkeypatc
     s = watchdog.collect(watchdog.LocalBox(), "ea", shot=str(tmp_path / "shots" / "x.png"), root=str(tmp_path / "nowhere"))
     assert s.get("screenshot_skipped") == "private" and not (tmp_path / "shots").exists()
     log = tmp_path / "ea" / "pfx" / "drive_c" / "ProgramData" / "EA Desktop" / "Logs" / "EADesktop.log"; log.parent.mkdir(parents=True)
-    log.write_text("[2026-10-31T01:42:13.000Z] PID: 1 DesktopFSM[awaitingAuthentication]\n")
+    log.write_text("[2026-10-31T01:42:13.000Z] PID: 1 DesktopFSM[awaitingAuthentication]\n", encoding="utf-8")
     s = watchdog.collect(watchdog.LocalBox(), "ea", shot=str(tmp_path / "shots" / "y.png"), root=str(tmp_path / "ea"))
     assert s.get("screenshot_skipped") == "private" and s["greps"]["ea_fsm"] == ["2026-10-31T01:42:13", "awaitingAuthentication"]

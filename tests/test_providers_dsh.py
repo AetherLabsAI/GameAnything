@@ -344,7 +344,7 @@ def test_dsh_search_plugin_reads_every_source_shape_and_keeps_the_key_safe():
         cfg = {"baseURL": base, "model": "perplexity/sonar", "apiKeyEnv": "OPENROUTER_API_KEY", **(config or {})}
         r = subprocess.run(["node", "--input-type=module", "-e", NODE_SEARCH % json.dumps(PLUGIN.as_uri()),
                             json.dumps([cfg, {"OPENROUTER_API_KEY": SECRET_OR} if launched is None else launched])],
-                           capture_output=True, text=True, timeout=60)
+                           capture_output=True, text=True, timeout=60, encoding="utf-8")
         assert r.returncode == 0, r.stderr
         return json.loads(r.stdout)
 

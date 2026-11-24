@@ -349,16 +349,16 @@ def test_apparmor_profile_per_host(tmp_path):
     def host(enabled, abi4):
         r = tmp_path / f"h{enabled}{abi4}"
         (r / "sys/module/apparmor/parameters").mkdir(parents=True)
-        (r / "sys/module/apparmor/parameters/enabled").write_text("Y\n" if enabled else "N\n")
-        (r / "etc/apparmor.d/abi").mkdir(parents=True); (r / "etc/apparmor.d/abi/3.0").write_text("")
-        if abi4: (r / "etc/apparmor.d/abi/4.0").write_text("")
+        (r / "sys/module/apparmor/parameters/enabled").write_text("Y\n" if enabled else "N\n", encoding="utf-8")
+        (r / "etc/apparmor.d/abi").mkdir(parents=True); (r / "etc/apparmor.d/abi/3.0").write_text("", encoding="utf-8")
+        if abi4: (r / "etc/apparmor.d/abi/4.0").write_text("", encoding="utf-8")
         return r
     assert sandbox.host_apparmor(host(True, True)) == 4 and sandbox.host_apparmor(host(True, False)) == 3
     assert sandbox.host_apparmor(host(False, True)) is None and sandbox.host_apparmor(tmp_path / "nothing") is None
     assert sandbox.apparmor_profile_file(4).name == "gameanything-steam.apparmor"
     assert sandbox.apparmor_profile_file(3).name == "gameanything-steam-u2204.apparmor"
     for abi in (3, 4):
-        f = sandbox.apparmor_profile_file(abi); text = f.read_text()
+        f = sandbox.apparmor_profile_file(abi); text = f.read_text(encoding="utf-8")
         assert f.is_file() and "profile gameanything-steam " in text and f"abi <abi/{abi}.0>" in text
         assert ("userns," in text) == (abi == 4)
         load = sandbox.apparmor_load_commands(abi)
@@ -379,7 +379,7 @@ def test_steam_home_for_another_uid_is_explicit():
     assert "ga-steam-home:/sandbox/home" in r and "ga-steam-games:/sandbox/home/.steam/debian-installation/steamapps" in r
     run = sandbox.run_argv("stardew", "img", "/g", image_uid=1000, uid=(1004, 1004))
     assert run[run.index("--user") + 1] == "1004:1004" and "HOME=/sandbox/home" in run
-    sh = (sandbox.ROOT / "lab" / "images" / "common" / "install-steam.sh").read_text()
+    sh = (sandbox.ROOT / "lab" / "images" / "common" / "install-steam.sh").read_text(encoding="utf-8")
     assert "install -d -o player -g player /home/player/.steam /home/player/.steam/debian-installation " in sh
     assert "-m 1777 /sandbox/home/.steam" in sh
 
@@ -455,8 +455,8 @@ def test_steam_layer_and_run_args(monkeypatch):
     for f in ("install-steam.sh", "ga-steam", "security/seccomp-steam.json", "security/gameanything-steam.apparmor",
               "security/gameanything-steam-u2204.apparmor"):
         assert (common / f).is_file(), f
-    assert "install-steam.sh" in (sandbox.ROOT / "lab" / "images" / "steam" / "Dockerfile").read_text()
-    assert "ga_need base java steam" in (sandbox.ROOT / "lab" / "images" / "sts" / "install.sh").read_text()
+    assert "install-steam.sh" in (sandbox.ROOT / "lab" / "images" / "steam" / "Dockerfile").read_text(encoding="utf-8")
+    assert "ga_need base java steam" in (sandbox.ROOT / "lab" / "images" / "sts" / "install.sh").read_text(encoding="utf-8")
 
 
 def test_ga_steam_reads_manifest_login_state_and_logon(tmp_path, monkeypatch):
@@ -466,10 +466,10 @@ def test_ga_steam_reads_manifest_login_state_and_logon(tmp_path, monkeypatch):
     (root / "steamapps").mkdir(parents=True); (root / "logs").mkdir()
     (root / "steamapps" / "appmanifest_413150.acf").write_text('"AppState"\n{\n\t"appid"\t\t"413150"\n\t"name"\t\t"Stardew Valley"\n'
         '\t"StateFlags"\t\t"4"\n\t"installdir"\t\t"Stardew Valley"\n\t"BytesDownloaded"\t\t"532939456"\n\t"BytesToDownload"\t\t"532939456"\n'
-        '\t"InstalledDepots"\n\t{\n\t\t"413153"\n\t\t{\n\t\t\t"manifest"\t\t"6005910083361727734"\n\t\t\t"size"\t\t"708901690"\n\t\t}\n\t}\n}\n')
-    (root / "logs" / "steamui_login.txt").write_text("[2026-10-29 11:37:27] [ WaitingForCredentials ] Received logon failure response\n")
+        '\t"InstalledDepots"\n\t{\n\t\t"413153"\n\t\t{\n\t\t\t"manifest"\t\t"6005910083361727734"\n\t\t\t"size"\t\t"708901690"\n\t\t}\n\t}\n}\n', encoding="utf-8")
+    (root / "logs" / "steamui_login.txt").write_text("[2026-10-29 11:37:27] [ WaitingForCredentials ] Received logon failure response\n", encoding="utf-8")
     (root / "logs" / "connection_log.txt").write_text("[2026-10-29 10:00:00] [Logged On, 4, 7] [U:1:1] old\n"
-                                                      "[2026-10-29 11:42:38] [Logged On, 4, 27] [U:1:1] RecvMsgClientLogOnResponse()\n")
+                                                      "[2026-10-29 11:42:38] [Logged On, 4, 27] [U:1:1] RecvMsgClientLogOnResponse()\n", encoding="utf-8")
     monkeypatch.setenv("GA_STEAM_ROOT", str(root))
     path = str(sandbox.ROOT / "lab" / "images" / "common" / "ga-steam")
     spec = importlib.util.spec_from_loader("ga_steam_t", importlib.machinery.SourceFileLoader("ga_steam_t", path))
