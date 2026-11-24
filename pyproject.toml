@@ -6,6 +6,24 @@ requires-python = ">=3.10,<3.15"                 # <3.15: uv picks the newest Py
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+authors = [
+    {name = "Wenyi Wu"}, {name = "Siqi Liu"}, {name = "Yuru Feng"}, {name = "Zixuan Song"},
+    {name = "Aayush Salvi"}, {name = "Sibo Zhu"}, {name = "Kun Zhou"}, {name = "Biwei Huang"},
+]
+keywords = ["games", "game-modding", "mods", "ai-agents", "agent-skills", "claude-code", "minecraft", "stardew-valley"]
+classifiers = [                                   # no License :: classifier: `license` above is an SPDX expression (setuptools 77+ rejects both)
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Games/Entertainment",
+]
 dependencies = [
     "pillow>=10",
     "pillow-heif>=0.16",
@@ -17,6 +35,13 @@ dependencies = [
     "opencc>=1.1; sys_platform != 'win32' or platform_machine != 'ARM64'",   # traditional -> simplified Chinese for adaptation projects
     "opencc-python-reimplemented>=0.1.7; sys_platform == 'win32' and platform_machine == 'ARM64'",   # same `opencc` module: OpenCC has no Windows ARM64 wheels
 ]
+
+[project.urls]
+Homepage = "https://huggingface.co/spaces/GameAnything/GameAnything"
+Repository = "https://github.com/AetherLabsAI/GameAnything"
+Paper = "https://arxiv.org/abs/2611.29238"
+Benchmark = "https://github.com/AetherLabsAI/GameAnything-Bench"
+Issues = "https://github.com/AetherLabsAI/GameAnything/issues"
 
 [project.optional-dependencies]
 transcribe = ["faster-whisper>=1.0"]
